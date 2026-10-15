@@ -11,10 +11,13 @@
     "node": ">=24.13.0 <25"
   },
   "scripts": {
+    "predev": "npm run build -w shared",
     "dev": "concurrently -k -n api,web \"npm run dev -w server\" \"npm run dev -w client\"",
-    "build": "npm run build -w client && npm run build -w server",
+    "build": "npm run build -w shared && npm run build -w client && npm run build -w server",
+    "pretypecheck": "npm run build -w shared",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:migrate": "npm run db:migrate -w server",
+    "pretest": "npm run build -w shared",
     "test": "npm run test -w server",
     "start": "npm run start -w server",
     "security:setup": "npm run security:setup -w server",
@@ -24,6 +27,7 @@
     "design:assets": "npm run design:assets -w server",
     "worker:transactional": "npm run worker:transactional -w server",
     "worker:marketing": "npm run worker:marketing -w server",
+    "prepreview": "npm run build -w shared",
     "preview": "concurrently -k -n api,web \"npm run preview -w server\" \"npm run dev -w client\"",
     "repository:check": "node scripts/repository-check.mjs"
   },
