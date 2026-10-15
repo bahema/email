@@ -1,0 +1,8 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {createCountryLoader,validCountries} from '../src/public/countryLoader.ts';
+const countries=[{code:'RW',name:'Rwanda',continent:'Africa'},{code:'US',name:'United States',continent:'North America'}];
+test('simultaneous signup forms share one valid request and the successful response is reused',async()=>{let calls=0;const load=createCountryLoader(async()=>{calls++;return countries;});const [a,b]=await Promise.all([load(),load()]);assert.deepEqual(a,countries);assert.strictEqual(a,b);await load();assert.equal(calls,1);});
+test('a failed country request remains recoverable and invalid responses are not cached',async()=>{let calls=0;const load=createCountryLoader(async()=>{calls++;if(calls===1)throw new Error('offline');if(calls===2)return '<html>Error</html>';return countries;});await assert.rejects(load(),/offline/);await assert.rejects(load(),/unavailable/);assert.deepEqual(await load(),countries);assert.equal(calls,3);});
+test('country timeout aborts the request and releases it for an explicit retry',async()=>{let signal:AbortSignal|undefined;const load=createCountryLoader(async s=>{signal=s;return new Promise(()=>{});},10);await assert.rejects(load(),/timed out/);assert.equal(signal?.aborted,true);});
+test('only distinct country codes with supported continent mappings are accepted',()=>{assert.equal(validCountries(countries),true);assert.equal(validCountries([]),false);assert.equal(validCountries([...countries,countries[0]]),false);assert.equal(validCountries([{code:'RW',name:'Rwanda',continent:'wrong'}]),false);});

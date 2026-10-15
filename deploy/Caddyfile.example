@@ -1,0 +1,6 @@
+# Replace this hostname with your domain. Install Caddy separately.
+# Intentionally omit access logging: subscriber URLs contain bearer tokens.
+your-domain.example {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:3001
+}

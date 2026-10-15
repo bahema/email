@@ -1,0 +1,24 @@
+[Unit]
+Description=33 items affiliate email engine
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=affiliate
+Group=affiliate
+WorkingDirectory=/opt/affiliate-engine
+EnvironmentFile=/etc/affiliate-engine/environment
+ExecStart=/usr/bin/node /opt/affiliate-engine/server/dist/server/src/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=40
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/affiliate-engine
+
+[Install]
+WantedBy=multi-user.target

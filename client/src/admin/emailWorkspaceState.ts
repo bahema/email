@@ -1,0 +1,2 @@
+import { useEffect } from 'react';
+export function useEmailWorkspaceDirty(dirty:boolean){useEffect(()=>{window.dispatchEvent(new CustomEvent('email-workspace-dirty',{detail:dirty}));const warn=(e:BeforeUnloadEvent)=>{if(dirty){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',warn);return()=>{window.removeEventListener('beforeunload',warn);window.dispatchEvent(new CustomEvent('email-workspace-dirty',{detail:false}));};},[dirty]);}

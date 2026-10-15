@@ -1,0 +1,28 @@
+name: Verify affiliate engine
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      PREVIEW_ONLY: 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+          cache: npm
+      - run: npm ci
+      - run: npm run repository:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: node --import tsx --test client/test/*.test.ts
+      - run: npm run build
+        env:
+          NODE_ENV: production
+      - run: npm audit --omit=dev --audit-level=high

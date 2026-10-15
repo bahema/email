@@ -1,0 +1,11 @@
+import {resolveTxt} from 'node:dns/promises';
+type Lookup=(name:string)=>Promise<string[][]>;
+export async function emailDnsReadiness(sender:string,selector='privateemail',lookup:Lookup=resolveTxt){
+ const domain=sender.split('@').at(-1)?.toLowerCase()??'';
+ if(!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain))return{domain:'',selector,checks:[],note:'Save a sender email with a public domain before checking DNS.'};
+ async function query(name:string){let timer:ReturnType<typeof setTimeout>|undefined;try{const records=await Promise.race([lookup(name),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject({code:'TIMEOUT'}),4000);})]);return{records:records.map(r=>r.join('')),error:false};}catch(e){const code=(e as {code?:string}).code;return{records:[],error:!['ENODATA','ENOTFOUND','NXDOMAIN'].includes(code??'')};}finally{if(timer)clearTimeout(timer);}}
+ const names=[domain,selector+'._domainkey.'+domain,'_dmarc.'+domain],data=await Promise.all(names.map(query));
+ const spf=data[0]!.records.filter(v=>/^v=spf1(?:\s|$)/i.test(v)),dkim=data[1]!.records.filter(v=>/(?:^|;)\s*p\s*=/i.test(v)),dmarc=data[2]!.records.filter(v=>/^v=DMARC1\s*;/i.test(v));
+ const checks=[{kind:'SPF',host:names[0],status:data[0]!.error?'unavailable':spf.length>1?'multiple':spf.length?'published':'missing',detail:'Publish one SPF record authorizing every legitimate sender. A detected record is not proof of SPF alignment.'},{kind:'DKIM',host:names[1],status:data[1]!.error?'unavailable':dkim.length>1?'multiple':dkim.some(v=>/(?:^|;)\s*p\s*=\s*[a-z0-9+/=]+/i.test(v))?'published':dkim.length?'invalid':'missing',detail:'Copy the public key and exact selector from your provider. Detection does not verify a received signature.'},{kind:'DMARC',host:names[2],status:data[2]!.error?'unavailable':dmarc.length>1?'multiple':dmarc.length&&/(?:^|;)\s*p=(none|quarantine|reject)(?:;|\s*$)/i.test(dmarc[0]!)?'published':dmarc.length?'invalid':'missing',detail:'Start with a monitoring policy if appropriate, then review real authentication results before enforcement.'}];
+ return{domain,selector,checkedAt:new Date().toISOString(),checks,note:'Read-only DNS lookup of the saved sender domain. Records are managed at your DNS provider. Published records do not guarantee authentication, inbox placement or mailbox existence.'};
+}

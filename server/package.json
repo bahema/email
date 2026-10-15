@@ -1,0 +1,43 @@
+{
+  "name": "@affiliate/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "start": "node dist/server/src/index.js",
+    "test": "tsx --test test/*.test.ts",
+    "security:setup": "tsx src/cli/security-setup.ts",
+    "admin:setup": "tsx src/cli/admin-setup.ts",
+    "admin:reset": "tsx src/cli/admin-setup.ts --reset",
+    "demo:seed": "tsx src/cli/demo-seed.ts",
+    "design:assets": "tsx src/cli/design-assets.ts",
+    "worker:transactional": "tsx src/cli/mail-worker.ts",
+    "worker:marketing": "tsx src/cli/marketing-worker.ts",
+    "preview": "tsx src/cli/preview.ts"
+  },
+  "dependencies": {
+    "@affiliate/shared": "*",
+    "countries-list": "^3.4.1",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.7.1",
+    "file-type": "^22.1.1",
+    "helmet": "^8.1.0",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.15",
+    "sanitize-html": "^2.18.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^24.10.0",
+    "@types/nodemailer": "^8.0.2",
+    "@types/sanitize-html": "^2.16.2",
+    "tsx": "^4.20.0"
+  }
+}
