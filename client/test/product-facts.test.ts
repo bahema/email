@@ -2,8 +2,33 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {ProductFacts,ProductStatusBadge,productAvailability} from '../src/public/ProductFacts.tsx';
+import {ProductFacts,ProductReviewDate,ProductStatusBadge,productAvailability} from '../src/public/ProductFacts.tsx';
+import {contentSchemas} from '../../server/src/content/schema.ts';
+import {openDatabase} from '../../server/src/db/database.ts';
+import {migrate} from '../../server/src/db/migrations.ts';
+import {ContentStore} from '../../server/src/content/store.ts';
+import {SettingsStore} from '../../server/src/settings/store.ts';
 const render=(data:Record<string,unknown>,kind='offer')=>renderToStaticMarkup(React.createElement(ProductFacts,{data,kind}));
+test('review dates are optional, calendar-valid and stable across server and browser timezones',()=>{
+ const input={description:'Details',action:'none'};
+ assert.equal(contentSchemas.offer.parse(input).lastReviewedDate,'');
+ for(const lastReviewedDate of ['2026-02-30','2026-13-01','yesterday'])assert.equal(contentSchemas.offer.safeParse({...input,lastReviewedDate}).success,false);
+ for(const value of ['',undefined,'2026-02-30'])assert.equal(renderToStaticMarkup(React.createElement(ProductReviewDate,{value})), '');
+ const html=renderToStaticMarkup(React.createElement(ProductReviewDate,{value:'2026-10-15'}));
+ assert.match(html,/Last reviewed:/);assert.match(html,/<time dateTime="2026-10-15">15 Oct 2026<\/time>/);
+});
+test('review dates save and clear through the existing offer store without changing on unrelated edits',()=>{
+ const db=openDatabase(':memory:');migrate(db);
+ try{
+  const store=new ContentStore(db,new SettingsStore(db,'ab'.repeat(32),'http://localhost:5173','UTC'));
+  const input={kind:'offer',slug:'review-date-check',title:'Reviewed offer',position:0,status:'active',data:{description:'Details',action:'none',lastReviewedDate:'2026-10-15'}};
+  const saved=store.saveItem(input);
+  store.saveItem({...input,title:'Updated title'},saved.id);
+  assert.equal(store.items().find(i=>i.id===saved.id)?.data.lastReviewedDate,'2026-10-15');
+  store.saveItem({...input,data:{...input.data,lastReviewedDate:''}},saved.id);
+  assert.equal(store.items().find(i=>i.id===saved.id)?.data.lastReviewedDate,'');
+ }finally{db.close();}
+});
 test('upcoming badges use listing intent and explicit availability takes priority',()=>{
  assert.equal(productAvailability({},'upcoming')?.label,'Coming soon');
  assert.equal(productAvailability({action:'coming_soon'})?.label,'Coming soon');

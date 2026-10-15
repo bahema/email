@@ -1,4 +1,10 @@
 import React from 'react';
+export function ProductReviewDate({value}:{value:unknown}){
+ if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
+ const date=new Date(value+'T00:00:00Z');
+ if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==value)return null;
+ return <p className="product-provider-note">Last reviewed: <time dateTime={value}>{new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(date)}</time></p>;
+}
 const labels:Record<string,string>={digital:'Digital access',physical:'Physical delivery',service:'Service',new:'New',used:'Used',refurbished:'Refurbished',available:'Available now',preorder:'Preorder',out_of_stock:'Out of stock'};
 export function physicalMaterial(data:Record<string,unknown>){return data.materialType==='physical'||(!data.materialType||data.materialType==='unspecified')&&data.deliveryType==='physical';}
 export function hasDeliveryDetails(data:Record<string,unknown>){return ['deliveryRegions','deliveryEstimate','deliveryCostNote','returnsPolicy','deliveryTerms'].some(key=>!!data[key])||(physicalMaterial(data)&&['new','used','refurbished'].includes(String(data.condition)))||['digital','physical','service'].includes(String(data.deliveryType));}
