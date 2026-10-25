@@ -29,4 +29,4 @@ Before updates, back up database, uploads and key consistently; stop every write
 
 ## Verification limits
 
-Local passing tests do not certify a public deployment. Verify HTTPS, DNS, proxy behavior, backups/restore, sender-domain authentication, provider restrictions and actual inbox delivery. Review privacy/affiliate/marketing requirements for your audience. No billing, tenant accounts, automatic bounce/complaint ingestion or provider API integration is included.
+Local passing tests do not certify a public deployment. Verify HTTPS, DNS, proxy behavior, backups/restore, sender-domain authentication, provider restrictions and actual inbox delivery. Review privacy/affiliate/marketing requirements for your audience. No billing or tenant accounts are included. Optional authenticated Mailgun API/feedback support is described in EMAIL-DELIVERY-RELEASE.md; it is inactive by default and requires provider approval. Private Email SMTP alone does not supply automatic provider feedback.

@@ -1,0 +1,2 @@
+import {useEffect} from 'react';
+export function useVisitCount(path:string){useEffect(()=>{if(navigator.doNotTrack==='1'||(navigator as Navigator&{globalPrivacyControl?:boolean}).globalPrivacyControl)return;try{if(localStorage.getItem('33items_visit_optout')==='1')return;}catch{}void fetch('/api/public/visit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path}),keepalive:true}).catch(()=>{});},[path]);}

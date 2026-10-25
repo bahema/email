@@ -29,7 +29,8 @@
     "worker:marketing": "npm run worker:marketing -w server",
     "prepreview": "npm run build -w shared",
     "preview": "concurrently -k -n api,web \"npm run preview -w server\" \"npm run dev -w client\"",
-    "repository:check": "node scripts/repository-check.mjs"
+    "repository:check": "node scripts/repository-check.mjs",
+    "audit:seo": "node scripts/seo-audit.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

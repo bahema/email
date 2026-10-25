@@ -7,5 +7,5 @@ export function TestimonialAvatar({name,avatarId}:{name:string;avatarId:unknown}
 }
 export function TestimonialCard({item}:{item:ContentItem}){
  const name=String(item.data.name||'Reviewer'),rating=Math.max(1,Math.min(5,Number(item.data.rating)||1));
- return <figure className="review-card"><div className="testimonial-rating" aria-label={`${rating} out of 5 stars`}><span aria-hidden="true">{'★'.repeat(rating)}{'☆'.repeat(5-rating)}</span></div><blockquote>{String(item.data.text||'')}</blockquote><figcaption><TestimonialAvatar name={name} avatarId={item.data.avatarId}/><span className="testimonial-name">{name}</span></figcaption></figure>;
+ return <figure className="review-card"><div className="testimonial-rating" role="img" aria-label={`${rating} out of 5 stars`}><span aria-hidden="true">{'★'.repeat(rating)}{'☆'.repeat(5-rating)}</span></div><blockquote>{String(item.data.text||'')}</blockquote><figcaption><TestimonialAvatar name={name} avatarId={item.data.avatarId}/><span className="testimonial-name">{name}</span></figcaption></figure>;
 }

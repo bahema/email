@@ -1,3 +1,4 @@
+import {promotionLive,type VideoPromotion} from '@affiliate/shared';
 import {EditorialStore} from './editorial.js';
 import type { DatabaseSync } from 'node:sqlite';
 import type { ContentItem, ContentKind, WebsiteSections, SiteResponse } from '@affiliate/shared';
@@ -7,6 +8,8 @@ import { HttpError } from '../http.js';
 import { transaction,event } from '../db/helpers.js';
 import type { SettingsStore } from '../settings/store.js';
 import { LeadPageStore } from '../lead-pages/store.js';
+import {healthCategories,type HealthCategory} from '@affiliate/shared';
+import {z} from 'zod';
 
 export function contentItem(row:Record<string,unknown>):ContentItem{return{id:Number(row.id),kind:row.kind as ContentKind,slug:String(row.slug),title:String(row.title),position:Number(row.position),status:String(row.status),data:row.kind==='hero'?contentSchemas.hero.parse({...JSON.parse(String(row.data)),slides:JSON.parse(String(row.data)).slides.map((v:Record<string,unknown>,i:number)=>({...v,key:v.key||'slide-'+(i+1)}))}):JSON.parse(String(row.data)) as Record<string,unknown>};}
 export class ContentStore {
@@ -49,10 +52,38 @@ export class ContentStore {
       return contentItem(this.db.prepare('SELECT * FROM content_items WHERE id=?').get(savedId!)!);
     });
   }
+  saveHealthOffer(input:unknown,id?:number){
+    const parsed=z.object({offer:itemSchema,category:z.enum(healthCategories),featured:z.boolean()}).strict().parse(input);
+    if(parsed.offer.kind!=='offer')throw new HttpError(400,'INVALID_KIND','Health products must use an offer record');
+    return transaction(this.db,()=>{
+      const offer=this.saveItem(parsed.offer,id),health=this.sections().health!;
+      const existing=health.products.find(p=>p.offerId===offer.id),entry={offerId:offer.id,category:parsed.category as HealthCategory,featured:parsed.featured};
+      const sections=this.saveSection('health',{...health,products:existing?health.products.map(p=>p.offerId===offer.id?entry:p):[...health.products,entry]});
+      return{offer,sections};
+    });
+  }
   saveSection(key:string,input:unknown):WebsiteSections{
     if(!Object.hasOwn(sectionSchemas,key))throw new HttpError(404,'NOT_FOUND','Website section not found');
     const value=sectionSchemas[key as keyof typeof sectionSchemas].parse(input);
     validateReferences(this.db,value);
+    if(key==='promotions')for(const page of (value as {pages:VideoPromotion[]}).pages){
+      for(const id of [...page.productIds,...(page.offerId?[page.offerId]:[])])if(!this.db.prepare("SELECT id FROM content_items WHERE id=? AND kind='offer'"+(page.status==='active'?" AND status='active'":'')).get(id))throw new HttpError(400,'INVALID_OFFER','Select existing offers; published promotions require active offers');
+      if(page.leadPageId){const lead=new LeadPageStore(this.db).get(page.leadPageId);if(page.status==='active'){const live=new LeadPageStore(this.db).active(lead.slug);if(!['double','single'].includes(live.data.deliveryMode))throw new HttpError(400,'INVALID_JOURNEY','Choose a subscription lead page');new LeadPageStore(this.db).validateDelivery({name:live.name,slug:live.slug,type:live.type,status:'active',data:live.data});}}
+    }
+    if(key==='health'){
+      const health=value as NonNullable<WebsiteSections['health']>;
+      for(const product of health.products)if(!this.db.prepare("SELECT id FROM content_items WHERE id=? AND kind='offer'").get(product.offerId))throw new HttpError(400,'INVALID_OFFER','Choose existing offers for Health & Beauty');
+      if(health.enabled&&health.header.action==='product'&&!health.products.some(p=>p.offerId===health.header.offerId))throw new HttpError(400,'INVALID_OFFER','Connect the promoted product to Health & Beauty first');
+      if(health.enabled&&health.header.action==='link'&&!health.header.url)throw new HttpError(400,'INVALID_LINK','Enter a destination for the header button');
+      if(health.enabled&&health.header.action==='subscribe'){
+        const saved=health.header.leadPageId?new LeadPageStore(this.db).get(health.header.leadPageId):null;
+        if(!saved)throw new HttpError(400,'INVALID_LEAD_PAGE','Connect a signup page for the header');
+        const page=new LeadPageStore(this.db).active(saved.slug);
+        if(!['double','single'].includes(page.data.deliveryMode))throw new HttpError(400,'INVALID_JOURNEY','Choose a lead page that accepts subscriptions');
+        new LeadPageStore(this.db).validateDelivery({name:page.name,slug:page.slug,type:page.type,status:'active',data:page.data});
+      }
+      if(health.leadPageId&&!this.db.prepare("SELECT id FROM lead_pages WHERE id=? AND status='active'").get(health.leadPageId))throw new HttpError(400,'INVALID_LEAD_PAGE','Choose an active lead page');
+    }
     if(key==='homepage'&&(value as {activeHeroId:number|null}).activeHeroId&&!this.db.prepare("SELECT id FROM content_items WHERE id=? AND kind='hero' AND status='active'").get((value as {activeHeroId:number}).activeHeroId))throw new HttpError(400,'INVALID_HERO','Select an active hero configuration');
     if(key==='homepage'){
       const home=value as WebsiteSections['homepage'];
@@ -62,6 +93,8 @@ export class ContentStore {
     return transaction(this.db,()=>{this.db.prepare('INSERT INTO website_sections(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key,JSON.stringify(value));updateReferences(this.db,`section:${key}`,value);event(this.db,'website_section_saved',{key});return this.sections();});
   }
   remove(id:number){
+    if(this.sections().promotions?.pages.some(p=>p.offerId===id||p.productIds.includes(id)))throw new HttpError(409,'CONTENT_IN_USE','Remove this offer from video promotions first');
+    if(this.sections().health?.products.some(p=>p.offerId===id))throw new HttpError(409,'CONTENT_IN_USE','Remove this offer from Health & Beauty first');
     if(this.db.prepare("SELECT e.id FROM editorial_pages e,json_each(e.data,'$.productIds') j WHERE j.value=? LIMIT 1").get(id))throw new HttpError(409,'CONTENT_IN_USE','Remove this product from its guides or collections first');
     if(!this.db.prepare('SELECT id FROM content_items WHERE id=?').get(id))throw new HttpError(404,'NOT_FOUND','Content not found');
     if(this.sections().homepage.activeHeroId===id)throw new HttpError(409,'CONTENT_IN_USE','Choose a different active hero before deleting this one');
@@ -85,6 +118,7 @@ export class ContentStore {
       return{...item,data};
     });
     const pages=new LeadPageStore(this.db),leadPages=pages.list().filter(p=>p.status==='active').map(p=>{const live=pages.active(p.slug);return{id:live.id,slug:live.slug,type:live.type,headline:live.data.headline,description:live.data.description,cta:live.data.cta,imageId:live.data.imageId,hasResource:!!live.data.resourceId};});
-    return{editorial:new EditorialStore(this.db).publicPages(),name:settings.general.siteName,logoUrl:settings.general.logoUrl,disclosure:settings.affiliate.disclosure,consentText:settings.compliance.consentText,items,sections:this.sections(),leadPages};
+    const sections=this.sections();if(sections.promotions)sections.promotions={pages:sections.promotions.pages.filter(p=>promotionLive(p))};
+    return{editorial:new EditorialStore(this.db).publicPages(),name:settings.general.siteName,logoUrl:settings.general.logoUrl,disclosure:settings.affiliate.disclosure,consentText:settings.compliance.consentText,items,sections,leadPages};
   }
 }

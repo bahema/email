@@ -1,3 +1,5 @@
+import {deliveryRoutes} from './mail/delivery-routes.js';
+import {visitorRoutes} from './analytics/visitors.js';
 import { downloadRoutes } from './downloads.js';
 import express, { type ErrorRequestHandler } from 'express';
 import helmet from 'helmet';
@@ -20,6 +22,7 @@ import type { MarketingSender } from './settings/email.js';
 import { leadRoutes } from './lead-pages/routes.js';
 import { analyticsRoutes } from './analytics/routes.js';
 import { seoRoutes } from './seo.js';
+import {shareImageRoutes} from './product-sharing.js';
 
 export interface AppOptions extends SessionOptions, AdminOptions { loginLimit?: number; trustProxy?: boolean; uploadDir?: string; marketingSender?: MarketingSender; }
 export function createApp(db: DatabaseSync, schemaVersion: number, options: AppOptions = {
@@ -43,7 +46,10 @@ export function createApp(db: DatabaseSync, schemaVersion: number, options: AppO
   const sessions = new Sessions(db, options);
   app.use('/api/auth', authRoutes(db, sessions, options.loginLimit));
   const settings = new SettingsStore(db, options.encryptionKey, options.siteUrl, options.timezone);
+  app.use(shareImageRoutes(db,settings,options.uploadDir ?? config.uploadDir));
+  const delivery=deliveryRoutes(db,settings,sessions);app.use('/api/admin/email-delivery',delivery.admin);app.use(delivery.publicRouter);
   app.use(seoRoutes(db,settings));
+  app.use(visitorRoutes(db,settings,options.encryptionKey));
   app.use(['/admin','/confirm','/unsubscribe','/download','/go','/email'],(_req,res,next)=>{res.setHeader('X-Robots-Tag','noindex, nofollow');next();});
   const content = contentRoutes(db, sessions, settings);
   const media = mediaRoutes(db, sessions, settings, options.uploadDir ?? config.uploadDir);

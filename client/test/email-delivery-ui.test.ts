@@ -1,0 +1,7 @@
+import React from 'react';
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {DeliverySettings} from '../src/admin/DeliverySettings.tsx';
+const report={config:{providerApproved:false,transport:'mailgun' as const,paused:true,pauseReason:'Maintenance',mailgunDomain:'mg.example.test',region:'us' as const,feedbackEnabled:true,apiKeySet:true,webhookKeySet:true},previewPaused:true,webhookUrl:'https://example.test/api/public/email-feedback/mailgun',lastFeedback:null,counts:[{status:'delivered',count:3}],recent:[]};
+test('delivery settings expose labelled secret placeholders, explicit pause limits and provider evidence without returning keys',()=>{const html=renderToStaticMarkup(React.createElement(DeliverySettings,{initialReport:report}));assert.match(html,/type="password"/);assert.match(html,/autoComplete="new-password"/);assert.match(html,/aria-describedby="delivery-api-help"/);assert.match(html,/API key/);assert.match(html,/Signing key stored/);assert.match(html,/Provider reports delivered/);assert.match(html,/PREVIEW_ONLY/);assert.match(html,/already being submitted may still finish/);assert.match(html,/<legend/);assert.match(html,/No(ne)? recorded/);assert.ok(!html.includes('fictional-api-key'));const smtp=renderToStaticMarkup(React.createElement(DeliverySettings,{initialReport:{...report,config:{...report.config,transport:'smtp'}}}));assert.match(smtp,/Private Email SMTP/);assert.ok(!smtp.includes('id="delivery-api-help"'));});

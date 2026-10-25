@@ -47,6 +47,6 @@ export class AnalyticsStore{
     if(filters.sourceId){clauses.push('source_id=?');args.push(filters.sourceId);}
     if(filters.search){clauses.push("(instr(lower(recipient),lower(?))>0 OR instr(lower(context),lower(?))>0 OR instr(lower(coalesce(source_label,'')),lower(?))>0)");args.push(filters.search,filters.search,filters.search);}
     const where=clauses.join(' AND '),stats=this.db.prepare(`SELECT status,count(*) count FROM (${union}) WHERE ${where} GROUP BY status`).all(...args).map(row=>({status:String(row.status),count:Number(row.count)}));
-    return {timezone,page,pageSize:50,stats,total:Number(this.db.prepare(`SELECT count(*) n FROM (${union}) WHERE ${where}`).get(...args)?.n),items:this.db.prepare(`SELECT * FROM (${union}) WHERE ${where} ORDER BY coalesce(sent_at,created_at) DESC,id DESC LIMIT 50 OFFSET ?`).all(...args,(page-1)*50)};
+    return {timezone,page,pageSize:50,stats,total:Number(this.db.prepare(`SELECT count(*) n FROM (${union}) WHERE ${where}`).get(...args)?.n),items:this.db.prepare(`SELECT d.*,m.delivery_status,m.transport delivery_transport FROM (SELECT * FROM (${union}) WHERE ${where} ORDER BY coalesce(sent_at,created_at) DESC,id DESC LIMIT 50 OFFSET ?) d LEFT JOIN email_delivery_messages m ON (m.kind||'-'||m.job_id)=d.id ORDER BY coalesce(d.sent_at,d.created_at) DESC,d.id DESC`).all(...args,(page-1)*50)};
   }
 }

@@ -143,7 +143,7 @@ test('safe tracking records unique events and disabling tracking preserves link 
 test('scheduled queue state survives reopening the SQLite database',async()=>{
  const f=await fixture(undefined,true);try{
   f.contact();const newsletter=f.newsletters.save(content()),campaign=f.campaigns.save({name:'Persistent demo',newsletterId:newsletter.id,audience:{type:'all'}}),now=Date.now();f.campaigns.launch(campaign.id,now);await new MarketingWorker(f.db,f.settings,async()=>assert.fail('SMTP absent')).tick(now);
-  f.db.close();const reopened=openDatabase(f.path);try{assert.equal(migrate(reopened),18);assert.equal(reopened.prepare('SELECT status FROM email_queue').get()?.status,'pending');assert.equal(new CampaignStore(reopened).get(campaign.id).status,'sending');}finally{reopened.close();}
+  f.db.close();const reopened=openDatabase(f.path);try{assert.equal(migrate(reopened),20);assert.equal(reopened.prepare('SELECT status FROM email_queue').get()?.status,'pending');assert.equal(new CampaignStore(reopened).get(campaign.id).status,'sending');}finally{reopened.close();}
  }finally{await f.close();}
 });
 

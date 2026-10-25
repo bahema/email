@@ -1,10 +1,12 @@
+import {sendMailgun,verifyMailgun,type DeliveryReceipt} from '../mail/mailgun.js';
+import type {DeliveryCredentials} from '../mail/delivery-settings.js';
 import { inlineSystemLogo } from '../mail/inline-logo.js';
 import nodemailer from 'nodemailer';
 import type { SmtpSettings } from '@affiliate/shared';
 import { HttpError } from '../http.js';
 import type { RenderedEmail } from '../marketing/newsletters.js';
 
-export type SmtpCredentials = SmtpSettings & { password: string };
+export type SmtpCredentials = SmtpSettings & Partial<DeliveryCredentials> & { password: string };
 export interface EmailService {
   verify(settings: SmtpCredentials): Promise<void>;
   sendTest(settings: SmtpCredentials, recipient: string): Promise<void>;
@@ -23,11 +25,13 @@ function transport(settings: SmtpCredentials) {
 }
 export const smtpService: EmailService = {
   async verify(settings) {
+    if(settings.transport==='mailgun')return verifyMailgun(settings);
     const sender = transport(settings);
     try { await sender.verify(); } finally { sender.close(); }
   },
   async sendTest(settings, recipient) {
     if (!settings.fromEmail) throw new HttpError(400, 'SMTP_NOT_CONFIGURED', 'Save a sender email first');
+    if(settings.transport==='mailgun'){await sendMailgun(settings,{from:{name:settings.fromName,address:settings.fromEmail},to:recipient,replyTo:settings.replyTo||undefined,subject:'Email delivery configuration test',text:'Your email provider accepted this configuration test. This does not prove inbox delivery.'},recipient);return;}
     const sender = transport(settings);
     try {
       await sender.sendMail({ from: { name: settings.fromName, address: settings.fromEmail }, to: recipient, replyTo: settings.replyTo || undefined, subject: 'Affiliate Engine SMTP test', text: 'Your Affiliate Engine SMTP test was accepted by the mail server. This is a configuration test, not a marketing campaign.' });
@@ -41,8 +45,9 @@ export function smtpError(error: unknown): HttpError {
   return new HttpError(502, 'SMTP_TEST_FAILED', message);
 }
 
-export async function sendTransactional(settings:SmtpCredentials,recipient:string,subject:string,text:string,messageId:string,html?:string):Promise<void>{
+export async function sendTransactional(settings:SmtpCredentials,recipient:string,subject:string,text:string,messageId:string,html?:string):Promise<void|DeliveryReceipt>{
   if(!settings.fromEmail)throw new HttpError(400,'SMTP_NOT_CONFIGURED','Save a sender email first');
+  if(settings.transport==='mailgun')return sendMailgun(settings,{from:{name:settings.fromName,address:settings.fromEmail},to:recipient,replyTo:settings.replyTo||undefined,subject,text,...inlineSystemLogo(html),messageId},recipient);
   const sender=transport(settings);
   try{await sender.sendMail({from:{name:settings.fromName,address:settings.fromEmail},to:recipient,replyTo:settings.replyTo||undefined,subject,text,...inlineSystemLogo(html),messageId});}finally{sender.close();}
 }
@@ -50,11 +55,12 @@ export async function sendTransactional(settings:SmtpCredentials,recipient:strin
 // A closed connection can occur after DATA acceptance. Retry only proven pre-send failures.
 export function safeToRetrySmtp(error:unknown){const failure=error as {code?:string;syscall?:string};return ['ECONNREFUSED','ENOTFOUND','EDNS'].includes(failure?.code??'')||(failure?.code==='ESOCKET'&&failure.syscall==='connect');}
 
-export type MarketingSender=(settings:SmtpCredentials,recipient:string,email:RenderedEmail,messageId:string)=>Promise<void>;
+export type MarketingSender=(settings:SmtpCredentials,recipient:string,email:RenderedEmail,messageId:string)=>Promise<void|DeliveryReceipt>;
 export const sendMarketing:MarketingSender=async(settings,recipient,email,messageId)=>{
   if(!settings.fromEmail)throw new HttpError(400,'SMTP_NOT_CONFIGURED','Save a sender email first');
-  const sender=transport(settings);
   const unsubscribe=new URL(email.unsubscribeUrl),raw=unsubscribe.pathname.match(/^\/unsubscribe\/([a-f0-9]{64})$/)?.[1];
   const oneClick=raw?new URL('/api/public/unsubscribe/'+raw+'/one-click',unsubscribe.origin).href:null;
-  try{await sender.sendMail({from:{name:settings.fromName,address:settings.fromEmail},to:recipient,replyTo:settings.replyTo||undefined,subject:email.subject,...inlineSystemLogo(email.html),text:email.text,messageId,list:{unsubscribe:{url:oneClick||email.unsubscribeUrl,comment:'Unsubscribe'}},...(oneClick?{headers:{'List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}}:{})});}finally{sender.close();}
+  const message={from:{name:settings.fromName,address:settings.fromEmail},to:recipient,replyTo:settings.replyTo||undefined,subject:email.subject,...inlineSystemLogo(email.html),text:email.text,messageId,list:{unsubscribe:{url:oneClick||email.unsubscribeUrl,comment:'Unsubscribe'}},...(oneClick?{headers:{'List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}}:{})};
+  if(settings.transport==='mailgun')return sendMailgun(settings,message,recipient);
+  const sender=transport(settings);try{await sender.sendMail(message);}finally{sender.close();}
 };

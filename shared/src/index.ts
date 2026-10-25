@@ -1,5 +1,7 @@
+export * from './promotions.js';
 export * from './video.js';
 export * from './hero.js';
+export * from './health.js';
 export interface HealthResponse {
   status: 'ok';
   service: string;
@@ -20,7 +22,7 @@ export interface SessionResponse {
 }
 
 export interface GeneralSettings {
-  siteName: string; siteUrl: string; adminEmail: string; timezone: string;
+  siteName: string; siteUrl: string; adminEmail: string; timezone: string; seoTitle?:string;seoDescription?:string;googleSiteVerification?:string;
   logoUrl: string; defaultSenderName: string;
 }
 export interface SmtpSettings {
@@ -33,7 +35,7 @@ export interface EmailDefaultsSettings {
   footer: string; unsubscribeText: string; affiliateDisclosure: string; identity: string; address?:string;contactEmail?:string;contactPhone?:string;websiteDescription?:string;socialLinks?:{platform:string;url:string;iconUrl:string}[];
 }
 export interface TrackingSettings {
-  opens: boolean; emailClicks: boolean; affiliateClicks: boolean; utm: boolean;
+  websiteVisits?:boolean;opens: boolean; emailClicks: boolean; affiliateClicks: boolean; utm: boolean;
 }
 export interface DomainsSettings { publicUrl: string; dkimSelector?:string; }
 export interface ComplianceSettings {
@@ -62,6 +64,8 @@ export type ContentKind = 'navigation' | 'hero' | 'offer' | 'upcoming' | 'faq' |
 export interface ContentItem { id: number; kind: ContentKind; slug: string; title: string; position: number; status: string; data: Record<string, unknown>; }
 export interface MediaAsset { id: number; filename: string; mime: string; size: number; extension: string; category: string; visibility: 'public' | 'private'; url: string; uploadedAt: string; }
 export interface WebsiteSections {
+  promotions?:{pages:import('./promotions.js').VideoPromotion[]};
+  health?:import('./health.js').HealthSection;
   discovery?:{savedEnabled:boolean;compareEnabled:boolean;savedHeading:string;collectionsHeading:string;guidesHeading:string};
   presentation: { heroEyebrow:string; heroSecondaryLabel:string; heroSecondaryHref:string; offersHeadline:string; offersDescription:string; upcomingHeadline:string; upcomingDescription:string; faqHeadline:string; reviewsHeadline:string; footerEyebrow:string };
   homepage: { activeHeroId: number | null; featuredOfferId?:number|null; featuredLeadPageId?:number|null };
@@ -96,6 +100,6 @@ export interface LeadPageSection {videoUrl?:string;videoAutoplay?:boolean;kind:'
 export interface LeadPage {id:number;name:string;slug:string;type:string;status:'draft'|'active'|'inactive';updatedAt?:string;hasUnpublishedChanges?:boolean;data:{downloadPageId?:number|null;deliveryMode?:'double'|'single'|'browse'|'campaign';productIds?:number[];formPlacement?:'side'|'bottom';brandMode?:'compact'|'full';hideHeroMedia?:boolean;colors?:{primary:string;accent:string;background:string};seo?:{title:string;description:string;imageId:number|null;noindex:boolean};audienceSegmentId?:number|null;directNewsletterId?:number|null;sections?:LeadPageSection[];eventAt?:string;endsAt?:string;eventLocation?:string;formMode?:'single'|'steps';calculator?:'roi'|'savings';recommendations?:{questionKey:string;answer:string;offerId:number;message:string}[];layout?:'showcase'|'focused'|'editorial';headline:string;subheadline:string;description:string;body:string;cta:string;imageId:number|null;videoId:number|null;videoUrl?:string;videoAutoplay?:boolean;resourceId:number|null;automationId:number|null;tags:string[];confirmationSubject:string;confirmationBody:string;successHeadline:string;successMessage:string;returnLabel:string;returnUrl:string;offerId:number|null;questions:LeadPageQuestion[];};}
 export interface Automation {id:number;name:string;status:'running'|'paused';steps:{delayMinutes:number;newsletterId:number;tags?:string[]}[];}
 
-export interface EmailReadiness { configured:boolean; previewPaused:boolean; trustedAdminOrigin:string; connectionTest:{at:string|null;current:boolean}; sendTest:{at:string|null;current:boolean}; checks:{key:string;label:string;ok:boolean;detail:string;section:string}[]; history:{id:number;at:string;section:string;fields:string[]}[]; }
+export interface EmailReadiness { deliveryPaused?:boolean;transport?:'smtp'|'mailgun';configured:boolean; previewPaused:boolean; trustedAdminOrigin:string; connectionTest:{at:string|null;current:boolean}; sendTest:{at:string|null;current:boolean}; checks:{key:string;label:string;ok:boolean;detail:string;section:string}[]; history:{id:number;at:string;section:string;fields:string[]}[]; }
 
 export interface DownloadPage {id:number;title:string;description:string;instructions:string;buttonLabel:string;mediaId:number;imageId:number|null;status:"draft"|"active";filename?:string;mime?:string;size?:number;updatedAt?:string;}

@@ -1,3 +1,5 @@
+import {senderReady} from '../mail/mailgun.js';
+import {beginDelivery,acceptedDelivery} from '../mail/feedback.js';
 import {reserveEmailAllowance} from '../mail/limits.js';
 import type { DatabaseSync } from 'node:sqlite';
 import type { SettingsStore } from '../settings/store.js';
@@ -18,12 +20,13 @@ export class MarketingWorker {
       this.db.prepare('INSERT INTO worker_heartbeats(name,seen_at) VALUES(?,?) ON CONFLICT(name) DO UPDATE SET seen_at=excluded.seen_at').run('marketing',now);
       const interrupted=this.db.prepare("SELECT id,campaign_id FROM email_queue WHERE status='processing' AND claimed_at<?").all(now-120000);
       for(const job of interrupted){this.db.prepare("UPDATE email_queue SET status='failed',last_error='Delivery outcome uncertain after interruption; not automatically resent' WHERE id=? AND status='processing'").run(Number(job.id));event(this.db,'email_failed',{queueId:Number(job.id),campaignId:Number(job.campaign_id),uncertain:true});this.campaigns.refresh(Number(job.campaign_id));}
+      if(this.settings.delivery().config().paused)return;
       transaction(this.db,()=>new AutomationStore(this.db).sync());
       this.campaigns.resolveDue(now);
       // Cancel blocked recipients even while the campaign is paused or SMTP is absent.
       this.db.prepare("UPDATE email_queue SET status='cancelled',last_error='Contact is not confirmed' WHERE status='pending' AND contact_id IN (SELECT id FROM contacts WHERE status!='confirmed')").run();
       for(const row of this.db.prepare("SELECT id FROM campaigns WHERE status='sending'").all())this.campaigns.refresh(Number(row.id));
-      const smtp=this.settings.smtpCredentials();if(!smtp.host||!smtp.fromEmail||(smtp.username&&!smtp.password))return;
+      const smtp=this.settings.smtpCredentials();if(!senderReady(smtp))return;
       const job=transaction(this.db,()=>{
         // A separate throttle lease keeps multiple processes from increasing the configured pace.
         const last=this.db.prepare("SELECT seen_at FROM worker_heartbeats WHERE name='marketing_delivery'").get();if(last&&now-Number(last.seen_at)<2000)return;
@@ -45,11 +48,14 @@ export class MarketingWorker {
           this.db.prepare('DELETE FROM email_links WHERE queue_id=?').run(Number(job.id));rendered.links.forEach((href,index)=>this.db.prepare('INSERT INTO email_links(queue_id,ordinal,destination) VALUES(?,?,?)').run(Number(job.id),index+1,href));return rendered;
         });
         if(!email){this.db.prepare("UPDATE email_queue SET status='cancelled' WHERE id=?").run(Number(job.id));return;}
-        await this.sender(smtp,String(job.recipient),email,`<campaign-${job.campaign_id}-contact-${job.contact_id}@${smtp.fromEmail.split('@')[1]}>`);
+        if(this.settings.delivery().config().paused){this.db.prepare("UPDATE email_queue SET status='pending',claimed_at=NULL WHERE id=? AND status='processing'").run(Number(job.id));return;}
+        const messageId=`<campaign-${job.campaign_id}-contact-${job.contact_id}@${smtp.fromEmail.split('@')[1]}>`,deliveryId=beginDelivery(this.db,'marketing',Number(job.id),Number(job.contact_id),String(job.recipient),messageId,smtp.transport);
+        const receipt=await this.sender(smtp,String(job.recipient),email,messageId);acceptedDelivery(this.db,deliveryId,receipt);
         this.db.prepare("UPDATE email_queue SET status='sent',sent_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),last_error=NULL WHERE id=? AND status='processing'").run(Number(job.id));event(this.db,'newsletter_sent',{queueId:Number(job.id),campaignId:Number(job.campaign_id),newsletterId:Number(job.newsletter_id)},Number(job.contact_id));
       }catch(error){
+        if(this.db.prepare('SELECT status FROM email_queue WHERE id=?').get(Number(job.id))?.status==='sent')return;
         const code=String((error as {code?:string})?.code??''),retry=safeToRetrySmtp(error)&&Number(job.attempts)<2;
-        const message=retry?'SMTP connection failed; retry scheduled':code==='EAUTH'?'SMTP authentication failed':['ETIMEDOUT','ECONNECTION','ESOCKET'].includes(code)?'Delivery outcome uncertain after interruption; not automatically resent':'SMTP delivery failed; check saved configuration';
+        const message=code==='EMAIL_API_UNCERTAIN'?'Email submission outcome uncertain; not automatically resent':code.startsWith('EMAIL_API_')?'Email API submission failed; review sender settings':retry?'SMTP connection failed; retry scheduled':code==='EAUTH'?'SMTP authentication failed':['ETIMEDOUT','ECONNECTION','ESOCKET'].includes(code)?'Delivery outcome uncertain after interruption; not automatically resent':'SMTP delivery failed; check saved configuration';
         this.db.prepare("UPDATE email_queue SET status=?,scheduled_at=?,last_error=? WHERE id=? AND status='processing'").run(retry?'pending':'failed',now+30000*(Number(job.attempts)+1),message,Number(job.id));event(this.db,'email_failed',{queueId:Number(job.id),campaignId:Number(job.campaign_id),retryScheduled:retry},Number(job.contact_id));
       }finally{this.campaigns.refresh(Number(job.campaign_id));transaction(this.db,()=>new AutomationStore(this.db).sync());}
     }finally{this.running=false;}

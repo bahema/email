@@ -1,5 +1,7 @@
 # Railway deployment
 
+For the current existing installation, use [the reviewed email release sequence](EMAIL-DELIVERY-RELEASE.md). Preserve the live database; initial migration instructions below are not an instruction to overwrite it with local data.
+
 Deploy the repository root as one always-running service. The Dockerfile builds the public frontend, server renderer and backend with Node 24. The backend serves them together and runs both mail workers. Keep one replica while using SQLite and local uploads; do not enable service sleeping/serverless for scheduled delivery.
 
 ## Configure before starting
@@ -17,7 +19,7 @@ SESSION_HOURS=8
 TRUST_PROXY=true
 ```
 
-Railway supplies PORT. Set TRUST_PROXY=true only when Railway is the single trusted proxy to the application; review this if introducing another proxy. Set SETTINGS_ENCRYPTION_KEY privately to the existing original key. Never commit it or paste it into a ticket or chat. Do not enable PREVIEW_ONLY: it pauses mail workers. Start only after data migration and domain configuration are ready, since existing pending jobs may send on startup.
+Railway supplies PORT. Set TRUST_PROXY=true only when Railway is the single trusted proxy to the application; review this if introducing another proxy. Set SETTINGS_ENCRYPTION_KEY privately to the existing original key. Never commit it or paste it into a ticket or chat. For a controlled upgrade, keep PREVIEW_ONLY=true until existing pending jobs and the selected transport have been reviewed. Set it false only when you intend to release those jobs. The admin sending pause is an additional independent control.
 
 ## Preserve the current account and content
 
@@ -34,6 +36,6 @@ Add the custom domain in Railway and publish the exact verification/routing reco
 
 In admin Settings, update General site URL, Domains public link URL, policy URLs, public image URLs and remaining default branding to the deployed origin. These saved values in an existing database do not automatically change when SITE_URL changes.
 
-Railway SMTP requires Pro or above. Retain Namecheap SMTP only after testing outbound connectivity and actual delivery; Hobby/Free/Trial require implementing an HTTPS email-provider integration instead. See https://docs.railway.com/networking/outbound-networking.
+Railway SMTP requires Pro or above. Retain Namecheap SMTP only after testing outbound connectivity and actual delivery; Hobby/Free/Trial require an HTTPS email-provider integration instead. The optional Mailgun adapter is available locally, but sending is held until specific approval for affiliate marketing is recorded; do not assume the provider permits this business model. See https://docs.railway.com/networking/outbound-networking.
 
 Verify health, login, uploaded media, confirmation, linked lead email, protected downloads, unsubscribe and backups. Confirm authentication using an actual received email's SPF/DKIM/DMARC results. Configure volume backups and retain the encryption key separately. This repository does not provision a volume, migrate data, publish DNS or create a Railway project automatically.

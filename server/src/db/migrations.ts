@@ -108,6 +108,20 @@ migrations.push({version:18,name:'shared_email_sending_limits',sql:`
  CREATE INDEX email_send_leases_sender_time ON email_send_leases(sender_key,claimed_at);
 `});
 
+migrations.push({version:19,name:'private_website_visitor_aggregates',sql:`
+ UPDATE content_items SET data=json_set(data,'$.answer',replace(json_extract(data,'$.answer'),'Browser advertising cookies, browser analytics and embedded social trackers are not enabled.','Advertising cookies and embedded social trackers are not enabled. Cookieless page counts and daily network visitor estimates may be enabled by the owner. DNT and Global Privacy Control are respected; opt out on the privacy page.')) WHERE kind='faq' AND instr(coalesce(json_extract(data,'$.answer'),''),'Browser advertising cookies, browser analytics and embedded social trackers are not enabled.')>0;
+ CREATE TABLE website_visit_days(day TEXT PRIMARY KEY,page_views INTEGER NOT NULL DEFAULT 0,visitors INTEGER NOT NULL DEFAULT 0);
+ CREATE TABLE website_visit_paths(day TEXT NOT NULL,path TEXT NOT NULL,page_views INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(day,path));
+ CREATE TABLE website_visit_keys(day TEXT NOT NULL,visitor_key TEXT NOT NULL,path TEXT NOT NULL,last_seen INTEGER NOT NULL,PRIMARY KEY(day,visitor_key,path));
+`});
+
+migrations.push({version:20,name:'email_delivery_feedback_and_controls',sql:`
+ CREATE TABLE email_delivery_config(id INTEGER PRIMARY KEY CHECK(id=1),config TEXT NOT NULL CHECK(json_valid(config)),api_key TEXT,webhook_key TEXT);
+ CREATE TABLE email_delivery_messages(id INTEGER PRIMARY KEY,kind TEXT NOT NULL CHECK(kind IN ('transactional','marketing')),job_id INTEGER NOT NULL,contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL,recipient TEXT NOT NULL,message_id TEXT NOT NULL UNIQUE,transport TEXT NOT NULL,provider_message_id TEXT,accepted_at TEXT,delivery_status TEXT NOT NULL DEFAULT 'unknown',status_at INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')),UNIQUE(kind,job_id));
+ CREATE INDEX email_delivery_provider_message ON email_delivery_messages(provider_message_id);
+ CREATE TABLE email_delivery_events(id INTEGER PRIMARY KEY,provider_event_id TEXT NOT NULL UNIQUE,token_hash TEXT NOT NULL UNIQUE,message_id INTEGER REFERENCES email_delivery_messages(id) ON DELETE CASCADE,kind TEXT NOT NULL CHECK(kind IN ('delivered','temporary_failure','bounced','complained','unsubscribed')),occurred_at INTEGER NOT NULL,received_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')));
+`});
+
 export function migrate(db: DatabaseSync): number {
   db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
     version INTEGER PRIMARY KEY, name TEXT NOT NULL,

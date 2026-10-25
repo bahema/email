@@ -21,3 +21,6 @@ coverage
 **/*.key
 **/*.p12
 **/*.pfx
+
+# Accidental nested project copy; keep out of source releases and containers
+/email/

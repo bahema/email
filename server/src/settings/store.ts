@@ -1,3 +1,4 @@
+import {DeliveryStore} from '../mail/delivery-settings.js';
 import type { DatabaseSync } from 'node:sqlite';
 import type { SettingsResponse, SettingsSection } from '@affiliate/shared';
 import { decryptSecret, encryptSecret } from '../security/crypto.js';
@@ -46,8 +47,9 @@ export class SettingsStore {
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
     return this.read();
   }
+  delivery(){return new DeliveryStore(this.db,this.key);}
   smtpCredentials() {
     const encrypted = this.get('smtp_password');
-    return { ...this.read().smtp, password: typeof encrypted === 'string' ? decryptSecret(encrypted, this.key) : '' };
+    return { ...this.read().smtp,...this.delivery().credentials(), password: typeof encrypted === 'string' ? decryptSecret(encrypted, this.key) : '' };
   }
 }

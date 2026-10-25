@@ -22,6 +22,8 @@ export function contentRoutes(db:DatabaseSync,sessions:Sessions,settings:Setting
   admin.delete('/editorial/:id',(req,res)=>{editorial.remove(z.coerce.number().int().positive().parse(req.params.id));res.json({message:'Page deleted'});});
   admin.get('/items/:id/results',(req,res)=>{const id=z.coerce.number().int().positive().parse(req.params.id),days=z.coerce.number().int().min(1).max(365).default(30).parse(req.query.days);if(!store.items().some(i=>i.id===id&&i.kind==='hero'))throw new HttpError(404,'NOT_FOUND','Header not found');res.setHeader('Cache-Control','no-store');res.json({...heroResults(db,id,days),affiliateTracking:settings.read().tracking.affiliateClicks});});
   admin.get('/',(_req,res)=>res.json({items:store.items(),sections:store.sections()}));
+  admin.post('/health/offers',(req,res)=>res.status(201).json(store.saveHealthOffer(req.body)));
+  admin.put('/health/offers/:id',(req,res)=>res.json(store.saveHealthOffer(req.body,z.coerce.number().int().positive().parse(req.params.id))));
   admin.post('/items/drafts',(req,res)=>res.status(201).json(store.saveItem(req.body,undefined,true)));
   admin.put('/items/:id/draft',(req,res)=>res.json(store.saveItem(req.body,z.coerce.number().int().positive().parse(req.params.id),true)));
   admin.post('/items/:id/activate',(req,res)=>res.json(store.activateHeader(z.coerce.number().int().positive().parse(req.params.id))));

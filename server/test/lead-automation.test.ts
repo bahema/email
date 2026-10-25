@@ -107,7 +107,7 @@ test('paused automation holds enrollments and resumes overdue steps; unsubscribe
 test('sequence state survives SQLite reopen and ready newsletter deletion is blocked',async()=>{
  const f=await fixture(undefined,true);try{
   const {n,a}=sequence(f);f.pages.save(pageInput(null,a.id));f.contacts.signup(signup());f.contacts.confirm(confirmation(f.db));assert.throws(()=>f.newsletters.remove(n.id));assert.equal((await f.request('/api/admin/campaigns/1/pause','POST',{})).status,409);
-  f.db.close();const reopened=openDatabase(f.path);try{assert.equal(migrate(reopened),18);assert.equal(reopened.prepare('SELECT count(*) n FROM automation_enrollments').get()?.n,1);assert.equal(reopened.prepare('SELECT count(*) n FROM campaigns').get()?.n,3);}finally{reopened.close();}
+  f.db.close();const reopened=openDatabase(f.path);try{assert.equal(migrate(reopened),20);assert.equal(reopened.prepare('SELECT count(*) n FROM automation_enrollments').get()?.n,1);assert.equal(reopened.prepare('SELECT count(*) n FROM campaigns').get()?.n,3);}finally{reopened.close();}
  }finally{await f.close();}
 });
 

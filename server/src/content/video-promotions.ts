@@ -1,0 +1,13 @@
+import {z} from 'zod';
+import {videoSource,colorContrast} from '@affiliate/shared';
+const short=z.string().trim().max(200),text=z.string().trim().max(6000),id=z.number().int().positive().nullable(),color=z.string().regex(/^#[0-9a-f]{6}$/i);
+const date=z.string().refine(v=>!v||/^\d{4}-\d\d-\d\dT/.test(v)&&Number.isFinite(Date.parse(v)),'Use an ISO date and time');
+export const videoPromotionSchema=z.object({
+ key:z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/),slug:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100),title:short.min(1),status:z.enum(['draft','active','inactive']),
+ eyebrow:short,description:z.string().trim().max(1000),body:text,benefits:z.array(short.min(1)).max(8),imageId:id,videoId:id,videoUrl:z.string().trim().max(2000).refine(v=>!v||v.startsWith('https://')&&!!videoSource(v),'Choose a supported video source'),videoAutoplay:z.boolean(),
+ layout:z.enum(['split','stacked']),alignment:z.enum(['left','center']),background:color,textColor:color,accent:color,
+ action:z.enum(['offer','lead','none']),offerTarget:z.enum(['details','provider']).default('details'),offerId:id,leadPageId:id,ctaLabel:short.min(1),productIds:z.array(z.number().int().positive()).max(3).refine(v=>new Set(v).size===v.length,'Choose each product once'),relatedHeading:short.min(1),detailsHeading:short.min(1),leadHeading:short.min(1),leadDescription:z.string().trim().max(1000),
+ seoTitle:z.string().trim().max(120),seoDescription:z.string().trim().max(200),noindex:z.boolean(),uploadDate:date,startsAt:date,endsAt:date,
+ notification:z.object({enabled:z.boolean(),title:short,message:z.string().trim().max(300),imageId:id,label:short.min(1),side:z.enum(['left','right']),delaySeconds:z.number().int().min(3).max(120),durationSeconds:z.number().int().min(6).max(30),cooldownHours:z.number().int().min(1).max(168),pages:z.array(z.string().max(200).regex(/^\/(?:[a-zA-Z0-9_/-]*)$/)).min(1).max(20)}).strict(),
+}).strict().refine(p=>colorContrast(p.background,p.textColor)>=4.5,'Hero text needs at least 4.5:1 contrast against its background').refine(p=>!p.endsAt||!p.startsAt||Date.parse(p.endsAt)>Date.parse(p.startsAt),'End must follow start').refine(p=>p.status!=='active'||!!(p.videoId||p.videoUrl),'Published promotions need a video').refine(p=>p.action!=='offer'||!!p.offerId,'Select an offer').refine(p=>p.action!=='lead'||!!p.leadPageId,'Select a signup page');
+export const promotionSectionSchema=z.object({pages:z.array(videoPromotionSchema).max(20)}).strict().refine(v=>new Set(v.pages.map(p=>p.slug)).size===v.pages.length&&new Set(v.pages.map(p=>p.key)).size===v.pages.length,'Promotion URLs and identifiers must be unique');

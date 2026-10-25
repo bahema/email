@@ -1,3 +1,5 @@
+import {ProviderPicker} from './ProviderPicker';
+import {DeliverySettings} from './DeliverySettings';
 import {DnsReadiness} from './DnsReadiness';
 import {EmailControl,SettingsPreview} from './EmailControl';
 import { MediaUrlButton } from './MediaPicker';
@@ -8,14 +10,17 @@ import { Security, System } from './Security';
 
 type InputType = 'text' | 'email' | 'url' | 'number' | 'checkbox' | 'textarea' | 'select';
 interface Field { placeholder?:string; key: string; label: string; type?: InputType; required?: boolean; options?: [string, string][]; help?: string; min?: number; max?: number; }
-const sections: { id: SettingsSection | 'security' | 'system'; label: string }[] = [
-  { id: 'general', label: 'General' }, { id: 'smtp', label: 'Email / SMTP' }, { id: 'emailDefaults', label: 'Email branding / footer' },
+const sections: { id: SettingsSection | 'security' | 'system' | 'delivery'; label: string }[] = [
+  {id:'delivery',label:'Delivery controls & feedback'}, { id: 'general', label: 'General' }, { id: 'smtp', label: 'Sender / SMTP' }, { id: 'emailDefaults', label: 'Email branding / footer' },
   {id:'activity',label:'Public activity slider'}, { id: 'tracking', label: 'Tracking' }, { id: 'domains', label: 'Domains / URLs' }, { id: 'compliance', label: 'Compliance' },
   { id: 'affiliate', label: 'Affiliate' }, { id: 'uploads', label: 'Uploads' }, { id: 'security', label: 'Security' }, { id: 'system', label: 'System' },
 ];
 const fields: Record<SettingsSection, Field[]> = {
   activity:[{key:'enabled',label:'Show backend activity beside the logo',type:'checkbox'},{key:'showLocations',label:'Show aggregated subscriber countries',type:'checkbox',help:'Countries are supplied by subscribers, not inferred visitor locations. Small groups are hidden.'},{key:'days',label:'Activity window (days)',type:'number',min:1,max:90},{key:'intervalSeconds',label:'Rotation interval (seconds)',type:'number',min:5,max:30}],
   general: [
+    {key:'seoTitle',label:'Homepage search title',max:120,help:'Optional stable homepage title. Leave empty to use the active hero headline.'},
+    {key:'seoDescription',label:'Homepage search description',type:'textarea',max:200,help:'Describe the real published resources and audience. Avoid keyword lists or unsupported claims.'},
+    {key:'googleSiteVerification',label:'Google Search Console verification token',max:200,help:'Paste only the content value from the HTML tag verification method, not the full tag. DNS verification can also be used.'},
     { key: 'siteName', label: 'Site name', required: true, max: 120 }, { key: 'siteUrl', label: 'Site URL', type: 'url', required: true },
     { key: 'adminEmail', label: 'Admin contact email', type: 'email', help: 'Contact address for the site. This does not change your login email.' },
     { key: 'timezone', label: 'Timezone', required: true, help: 'IANA name, for example Africa/Kigali.' },
@@ -35,7 +40,7 @@ const fields: Record<SettingsSection, Field[]> = {
     { key: 'identity', label: 'Company / site identity', type: 'textarea' }, { key: 'footer', label: 'Default email footer', type: 'textarea', max: 10000 },
     { key: 'unsubscribeText', label: 'Unsubscribe link text', required: true, max: 500 }, { key: 'affiliateDisclosure', label: 'Default email affiliate disclosure', type: 'textarea', max: 5000 },
   ],
-  tracking: [
+  tracking: [{key:'websiteVisits',label:'Count cookieless website visits',type:'checkbox',help:'Aggregate page views and daily network visitor estimates. No raw IPs, query strings or browser identifiers are stored. DNT and Global Privacy Control are respected.'},
     { key: 'opens', label: 'Enable email open tracking', type: 'checkbox', help: 'Open counts are approximate; email clients can block or preload images.' },
     { key: 'emailClicks', label: 'Enable email click tracking', type: 'checkbox' }, { key: 'affiliateClicks', label: 'Enable affiliate click tracking', type: 'checkbox' },
     { key: 'utm', label: 'Capture UTM acquisition parameters', type: 'checkbox' },
@@ -54,9 +59,10 @@ const fields: Record<SettingsSection, Field[]> = {
 const extensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'pdf', 'txt', 'doc', 'docx', 'zip', 'mp4', 'webm'];
 
 export function Settings({ onSession }: { onSession: (session: SessionResponse) => void }) {
+  const [deliveryDirty,setDeliveryDirty]=useState(false);
   const [saved,setSaved]=useState<SettingsResponse|null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
-  const [section, setSection] = useState<SettingsSection | 'security' | 'system'>(()=>sections.find(s=>s.id===location.hash.slice(1))?.id??'general');
+  const [section, setSection] = useState<SettingsSection | 'security' | 'system' | 'delivery'>(()=>sections.find(s=>s.id===location.hash.slice(1))?.id??'general');
   const [dirty, setDirty] = useState<Set<SettingsSection>>(new Set());
   const [password, setPassword] = useState('');
   const [clearPassword, setClearPassword] = useState(false);
@@ -71,16 +77,16 @@ export function Settings({ onSession }: { onSession: (session: SessionResponse) 
   }, []);
   useEffect(()=>{const changed=()=>{const next=sections.find(s=>s.id===location.hash.slice(1));if(next)setSection(next.id);};window.addEventListener('hashchange',changed);return()=>window.removeEventListener('hashchange',changed);},[]);
   useEffect(()=>{if(!dirty.size)return;const leave=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',leave);return()=>window.removeEventListener('beforeunload',leave);},[dirty]);
-  function discard(){if(!saved||section==='security'||section==='system')return;setSettings(previous=>previous?{...previous,[section]:saved[section]}:saved);setDirty(previous=>{const next=new Set(previous);next.delete(section);return next;});setPassword('');setClearPassword(false);setError('');setMessage('Draft changes discarded.');}
+  function discard(){if(!saved||section==='security'||section==='system'||section==='delivery')return;setSettings(previous=>previous?{...previous,[section]:saved[section]}:saved);setDirty(previous=>{const next=new Set(previous);next.delete(section);return next;});setPassword('');setClearPassword(false);setError('');setMessage('Draft changes discarded.');}
   function mediaUrl(url:string){return new URL(url,settings?.domains.publicUrl||location.origin).href;}
   function update(key: string, value: unknown) {
-    if (section === 'security' || section === 'system') return;
+    if (section === 'security' || section === 'system' || section === 'delivery') return;
     setSettings(previous => previous ? { ...previous, [section]: { ...previous[section], [key]: value } } : previous);
     setDirty(previous => new Set(previous).add(section)); setMessage('');setError('');
   }
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!settings || section === 'security' || section === 'system') return;
+    if (!settings || section === 'security' || section === 'system' || section === 'delivery') return;
     setBusy(true); setError(''); setMessage('');
     let payload: unknown = settings[section];
     if (section === 'smtp') {
@@ -115,10 +121,11 @@ export function Settings({ onSession }: { onSession: (session: SessionResponse) 
     </label>{fieldError&&<p id={id+'-error'} className="text-sm text-red-700">{fieldError}</p>}{definition.help && <p className="mt-1 text-sm text-slate-500">{definition.help}</p>}</div>;
   }
   return <div>
-    <h1 className="text-3xl font-bold">Email & website settings</h1><p className="mt-2 mb-5 text-slate-600">Configure your sender, subscriber journey and shared branding.</p><EmailControl/><div className="settings-workspace">
-    <nav aria-label="Settings sections" className="settings-navigation">{sections.map(item => <button key={item.id} type="button" disabled={busy} aria-current={section === item.id ? 'page' : undefined} className={`rounded-lg border px-3 py-2 text-sm ${section === item.id ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white hover:bg-slate-100'}`} onClick={() => { setSection(item.id);window.history.replaceState(null,'','#'+item.id); setMessage(''); setError(''); }}>{item.label}{dirty.has(item.id as SettingsSection) ? ' •' : ''}</button>)}</nav>
+    <h1 className="text-3xl font-bold">Email & website settings</h1><p className="mt-2 mb-5 text-slate-600">Configure your sender, subscriber journey and shared branding.</p><EmailControl/><div className={'settings-workspace'+(section==='delivery'?' is-delivery':'')}>
+    <nav aria-label="Settings sections" className="settings-navigation">{sections.map(item => <button key={item.id} type="button" disabled={busy||(deliveryDirty&&item.id!==section)} aria-current={section === item.id ? 'page' : undefined} className={`rounded-lg border px-3 py-2 text-sm ${section === item.id ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white hover:bg-slate-100'}`} onClick={() => { setSection(item.id);window.history.replaceState(null,'','#'+item.id); setMessage(''); setError(''); }}>{item.label}{dirty.has(item.id as SettingsSection) ? ' •' : ''}</button>)}</nav>
     <div className="panel settings-editor">
-      {section === 'security' ? <Security onSession={onSession} /> : section === 'system' ? <System /> : !settings ? <p role="status">Loading settings…</p> : <>
+      {section === 'delivery' ? <DeliverySettings onDirtyChange={setDeliveryDirty}/> : section === 'security' ? <Security onSession={onSession} /> : section === 'system' ? <System /> : !settings ? <p role="status">Loading settings…</p> : <>
+        {section==='smtp'&&<ProviderPicker disabled={busy||dirty.has('smtp')} onDirtyChange={setDeliveryDirty}/>}
         <form className="space-y-5" onSubmit={save}>
           <h2 className="text-xl font-semibold">{sections.find(item => item.id === section)?.label}</h2>
           {section==='smtp'&&<div className="settings-link-examples"><strong>Gmail now, business email later</strong><p className="field-help">For Gmail use smtp.gmail.com, port 587 with STARTTLS (or port 465 with TLS), your full Gmail address as username and sender, and a Google app password. Enable 2-Step Verification first. <a href="https://support.google.com/accounts/answer/185833" target="_blank" rel="noopener noreferrer">Google app password instructions</a></p><p className="field-help">This engine supports SMTP username/password authentication; OAuth-only providers require an additional integration. When you change providers, replace the credentials and sender, save, then run both tests. Existing contacts, newsletters and sequences remain saved. Test results become stale when the SMTP configuration changes.</p></div>}
@@ -137,14 +144,14 @@ export function Settings({ onSession }: { onSession: (session: SessionResponse) 
           <div className="settings-savebar"><button className="button" disabled={busy||!dirty.has(section)}>{busy ? 'Working…' : 'Save settings'}</button>{dirty.has(section)&&<button type="button" className="button-secondary" disabled={busy} onClick={discard}>Discard changes</button>}{dirty.has(section) && <span className="text-sm text-slate-500">Unsaved changes</span>}</div>
         </form>
         {section === 'smtp' && <section className="mt-8 border-t border-slate-200 pt-6">
-          <h3 className="font-semibold">Test saved SMTP settings</h3>
-          {dirty.has('smtp') && <p className="mt-2 text-sm text-slate-600">Save SMTP changes before testing.</p>}
-          <button type="button" className="button-secondary mt-4" disabled={busy || dirty.has('smtp')} onClick={() => void smtpTest('verify')}>Test connection</button>
+          <h3 className="font-semibold">Test saved sending settings</h3>
+          {dirty.has('smtp') && <p className="mt-2 text-sm text-slate-600">Save sender changes before testing.</p>}
+          <button type="button" className="button-secondary mt-4" disabled={busy || deliveryDirty || dirty.has('smtp')} onClick={() => void smtpTest('verify')}>Test connection</button>
           <form className="mt-5 space-y-3" onSubmit={event => { event.preventDefault(); void smtpTest('test'); }}><label className="field">Test recipient<input required type="email" maxLength={254} value={recipient} onChange={e => setRecipient(e.target.value)} /></label><button className="button-secondary" disabled={busy || dirty.has('smtp')}>Send test email</button></form>
         </section>}
       </>}
       {message && <p role="status" className="mt-5 text-sm text-teal-700">{message}</p>}
       {error && <p role="alert" className="mt-5 text-sm text-red-700">{error}</p>}
-    </div>{settings&&section!=='security'&&section!=='system'&&<SettingsPreview settings={settings}/>}</div>
+    </div>{settings&&section!=='security'&&section!=='system'&&section!=='delivery'&&<SettingsPreview settings={settings}/>}</div>
   </div>;
 }

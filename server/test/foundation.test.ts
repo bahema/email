@@ -8,9 +8,9 @@ import { createApp, errorHandler } from '../src/app.js';
 test('migrations are repeatable and enforce foundation constraints', () => {
   const db = openDatabase(':memory:');
   try {
-    assert.equal(migrate(db), 18);
-    assert.equal(migrate(db), 18);
-    assert.equal(db.prepare('SELECT count(*) AS count FROM schema_migrations').get()?.count, 18);
+    assert.equal(migrate(db), 20);
+    assert.equal(migrate(db), 20);
+    assert.equal(db.prepare('SELECT count(*) AS count FROM schema_migrations').get()?.count, 20);
     assert.throws(() => db.prepare('INSERT INTO admin (id,email,password_hash) VALUES (2,?,?)').run('admin@example.test', 'hash'));
     assert.throws(() => db.prepare('INSERT INTO settings (key,value) VALUES (?,?)').run('bad', 'not-json'));
     assert.equal(db.prepare('PRAGMA foreign_keys').get()?.foreign_keys, 1);
