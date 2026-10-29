@@ -9,6 +9,7 @@ import {countryInfo,countryOptions} from './contacts/countries.js';
 import {escapeHtml,pageMetadata,renderPageHtml} from './seo.js';
 type PublicRenderer=(bootstrap:PublicBootstrap,path:string)=>string;
 let renderer:PublicRenderer|null=null;
+// Inject tracking into the server-rendered public pages served by the custom domain.
 const whopPixel='<script>!function(w,d,s,u,n,a,b){if(w[n])return;a=w[n]={q:[],t:+new Date,s:[],o:u,track:function(){a.q.push([+new Date].concat([].slice.call(arguments)))},setScope:function(){a.s=[].slice.call(arguments).filter(function(x){return typeof x==="string"});a.q.push([+new Date,"setScope"].concat(a.s))},scope:function(){var c=[].slice.call(arguments);return{track:function(){a.q.push([+new Date].concat([].slice.call(arguments)).concat([{__scope:c}]))}}}};b=d.createElement(s);b.async=1;b.src=u+"/s.js";d.getElementsByTagName(s)[0].parentNode.insertBefore(b,d.getElementsByTagName(s)[0])}(window,document,"script","https://t.whop.tw","whop");whop.setScope("biz_EpLybXC6qH7jZx");whop.track("page");</script>';
 export function setPublicRenderer(value:PublicRenderer){renderer=value;}
 export function publicActivity(db:DatabaseSync,settings:SettingsStore){
