@@ -34,7 +34,7 @@ export function createApp(db: DatabaseSync, schemaVersion: number, options: AppO
   const app = express();
   app.disable('x-powered-by');
   if (options.trustProxy) app.set('trust proxy', 1);
-  app.use(helmet({ referrerPolicy: { policy: 'no-referrer' }, contentSecurityPolicy: { directives: { imgSrc: ["'self'", "data:", "https:", "http:"], mediaSrc: ["'self'", "https:"], frameSrc: ["'self'", "https://www.youtube-nocookie.com", "https://player.vimeo.com"] } } }));
+  app.use(helmet({ referrerPolicy: { policy: 'no-referrer' }, contentSecurityPolicy: { directives: { scriptSrc: ["'self'", "https://t.whop.tw", "'sha256-4+/JMArj30cAjAMQw8+cJmGr8zjibGYY4OkAe0U/zsg='"], connectSrc: ["'self'", "https://t.whop.tw"], imgSrc: ["'self'", "data:", "https:", "http:"], mediaSrc: ["'self'", "https:"], frameSrc: ["'self'", "https://www.youtube-nocookie.com", "https://player.vimeo.com"] } } }));
   app.use((_req, res, next) => { res.locals.requestId = randomUUID(); res.setHeader('X-Request-ID', res.locals.requestId); next(); });
   app.use(express.json({ limit: '100kb' }));
   app.use('/api',(_req,res,next)=>{res.setHeader('X-Robots-Tag','noindex, nofollow');res.setHeader('Cache-Control','no-store');next();});
