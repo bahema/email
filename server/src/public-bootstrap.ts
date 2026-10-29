@@ -9,6 +9,7 @@ import {countryInfo,countryOptions} from './contacts/countries.js';
 import {escapeHtml,pageMetadata,renderPageHtml} from './seo.js';
 type PublicRenderer=(bootstrap:PublicBootstrap,path:string)=>string;
 let renderer:PublicRenderer|null=null;
+const whopPixel='<script>!function(w,d,s,u,n,a,b){if(w[n])return;a=w[n]={q:[],t:+new Date,s:[],o:u,track:function(){a.q.push([+new Date].concat([].slice.call(arguments)))},setScope:function(){a.s=[].slice.call(arguments).filter(function(x){return typeof x==="string"});a.q.push([+new Date,"setScope"].concat(a.s))},scope:function(){var c=[].slice.call(arguments);return{track:function(){a.q.push([+new Date].concat([].slice.call(arguments)).concat([{__scope:c}]))}}}};b=d.createElement(s);b.async=1;b.src=u+"/s.js";d.getElementsByTagName(s)[0].parentNode.insertBefore(b,d.getElementsByTagName(s)[0])}(window,document,"script","https://t.whop.tw","whop");whop.setScope("biz_EpLybXC6qH7jZx");whop.track("page");</script>';
 export function setPublicRenderer(value:PublicRenderer){renderer=value;}
 export function publicActivity(db:DatabaseSync,settings:SettingsStore){
  const config=settings.read().activity;if(!config.enabled)return {enabled:false,intervalSeconds:config.intervalSeconds,messages:[]};
@@ -26,7 +27,7 @@ export function publicBootstrap(db:DatabaseSync,settings:SettingsStore,path:stri
  return {query,countries:countryOptions,site,funnel,page,pageSlug:slug,activity:publicActivity(db,settings),action,storageSaved,renderedAt:Date.now(),publicOrigin:funnel?'https://'+funnel.host:settings.read().domains.publicUrl};
 }
 export function initialHtml(html:string,db:DatabaseSync,settings:SettingsStore,path:string,host:string,storageSaved=false,query=''){
- const meta=pageMetadata(db,settings,path,host);let output=renderPageHtml(html,meta);if(path.startsWith('/admin'))return output;
+ const meta=pageMetadata(db,settings,path,host);let output=renderPageHtml(html,meta);if(path.startsWith('/admin'))return output;output=output.replace('</head>',whopPixel+'</head>');
  const bootstrap=publicBootstrap(db,settings,path,host,storageSaved,query),site=bootstrap.site,e=escapeHtml,home=path==='/'&&!bootstrap.funnel;
  const resources=site.items.filter(i=>i.kind==='offer');
  const header=`<header class="site-header"><nav class="site-nav" aria-label="Main navigation"><a class="site-brand" href="/" aria-label="${e(site.name)} home"><img class="website-logo" src="${e(site.logoUrl||'/brand/33-items-logo.jpg')}" alt="${e(site.name)} logo" width="56" height="56"></a><div class="site-nav-links">${site.items.filter(i=>i.kind==='navigation').map(i=>`<a href="${e(i.data.href)}">${e(i.data.label)}</a>`).join('')}</div><a class="admin-entry" href="/admin/login">Admin</a></nav></header>`;
