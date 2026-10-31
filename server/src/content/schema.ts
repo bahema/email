@@ -1,3 +1,5 @@
+import {embedSectionSchema} from './embeds.js';
+import {defaultEmbeds} from '@affiliate/shared';
 import {defaultHealthSlider,colorContrast} from '@affiliate/shared';
 import {promotionSectionSchema} from './video-promotions.js';
 import {videoSource,healthCategories,defaultHealth} from '@affiliate/shared';
@@ -39,6 +41,7 @@ export const contentSchemas = {
 export const itemSchema = z.object({ kind: z.enum(['navigation','hero','offer','upcoming','faq','review','partner']), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(120), title: short.min(1), position: z.number().int().min(0).max(10000).default(0), status: z.enum(['active','inactive','draft','pending','approved','rejected']), data: z.record(z.string(),z.unknown()) }).strict();
 const color = z.string().regex(/^#[a-f0-9]{6}$/i);
 export const sectionSchemas = {
+  embeds:embedSectionSchema,
   promotions:promotionSectionSchema,
   health:z.preprocess(value=>{if(value&&typeof value==='object'&&!Array.isArray(value)){const {slides:legacySlides,...rest}=value as Record<string,unknown>;return rest;}return value;},z.object({slider:z.object({backgroundFrom:color,backgroundTo:color,text:color,muted:color,button:color,buttonText:color,imageBackground:color,priceBackground:color,shadow:z.enum(['soft','defined','strong'])}).strict().refine(v=>[v.backgroundFrom,v.backgroundTo].every(bg=>colorContrast(bg,v.text)>=4.5&&colorContrast(bg,v.muted)>=4.5)&&colorContrast(v.button,v.buttonText)>=4.5,'Slider text and button colours need at least 4.5:1 contrast').default(defaultHealthSlider),enabled:z.boolean(),headline:short.min(1),description:text,body:text,seoTitle:short.min(1),seoDescription:z.string().trim().max(200),imageId:mediaId,leadPageId:mediaId,header:z.object({background:color,text:color,accent:color,eyebrow:short.default(defaultHealth.header.eyebrow),layout:z.enum(['split','background','compact']).default('split'),alignment:z.enum(['left','center']).default('left'),action:z.enum(['browse','product','link','subscribe','none']).default('browse'),buttonLabel:short.min(1).default(defaultHealth.header.buttonLabel),offerId:mediaId,productTarget:z.enum(['details','provider']).default('details'),url:link.default(''),leadPageId:mediaId,secondaryLabel:short.default(''),secondaryUrl:link.default('')}).strict().default(defaultHealth.header),products:z.array(z.object({offerId:z.number().int().positive(),category:z.enum(healthCategories),featured:z.boolean().default(true)}).strict()).max(100)}).strict().refine(v=>new Set(v.products.map(p=>p.offerId)).size===v.products.length,'Choose each product only once')),
   discovery:z.object({savedEnabled:z.boolean().default(true),compareEnabled:z.boolean().default(true),savedHeading:short.min(1).default('Saved items'),collectionsHeading:short.min(1).default('Selected collections'),guidesHeading:short.min(1).default('Helpful guides')}).strict(),
@@ -51,6 +54,7 @@ export const sectionSchemas = {
 };
 export function defaultSections() {
   return {
+    embeds:structuredClone(defaultEmbeds),
     promotions:{pages:[]},
     health:structuredClone(defaultHealth),
     discovery:{savedEnabled:true,compareEnabled:true,savedHeading:'Saved items',collectionsHeading:'Selected collections',guidesHeading:'Helpful guides'},

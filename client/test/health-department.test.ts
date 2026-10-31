@@ -84,3 +84,19 @@ test('authenticated Health editor API creates once, publishes and unpublishes th
   response=await fetch(origin+path+'/'+draft.offer.id,{method:'PUT',headers,body:JSON.stringify({...input,offer:{...input.offer,status:'inactive'}})});assert.equal(response.status,200);const hidden=await (await fetch(origin+'/api/public/site')).json();assert.equal(healthSliderProducts(hidden.sections.health,hidden.items).length,0);
  }finally{await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));f.db.close();}
 });
+
+test('health filters render saved facts on the first response and related products stay inside the department',()=>{
+ const f=fixture();try{const make=(slug:string,amount:number,availability='available')=>f.content.saveItem({kind:'offer',slug,title:slug,status:'active',position:0,data:{description:'Saved description',ingredients:'Provider ingredients',cautions:'Provider caution',action:'affiliate',destination:'https://provider.test',priceMode:'fixed',priceAmount:amount,currency:'USD',availability}});
+ const one=make('budget-care',10),two=make('premium-care',40),three=make('future-care',15,'preorder');f.content.saveSection('health',{...defaultHealth,enabled:true,products:[one,two,three].map(o=>({offerId:o.id,category:'beauty'}))});const site=f.content.publicSite();
+ const html=renderToStaticMarkup(React.createElement(BootstrapContext.Provider,{value:{query:'?currency=USD&min=5&max=20&availability=available'} as any},React.createElement(HealthDepartment,{site,onSignup:()=>{}})));assert.match(html,/budget-care/);assert.doesNotMatch(html,/premium-care|future-care/);assert.match(html,/1 of 3 products/);assert.match(html,/Minimum price/);
+ const details=renderToStaticMarkup(React.createElement(HealthDepartment,{site,path:'/health/products/budget-care',onSignup:()=>{}}));assert.match(details,/href="\/health\/products\/premium-care"/);assert.match(details,/Provider ingredients/);assert.match(details,/Provider caution/);assert.match(details,/href="\/go\/budget-care"/);
+ }finally{f.db.close();}
+});
+
+import {HealthReading,healthEditorial} from '../src/public/HealthBrowseTools.tsx';
+
+test('health guides and topic links reuse only relevant published editorial pages',()=>{
+ const f=fixture();try{const offer=f.content.saveItem({kind:'offer',slug:'skin',title:'Skin',status:'active',position:0,data:{description:'Saved facts',action:'none'}});f.content.saveSection('health',{...defaultHealth,enabled:true,products:[{offerId:offer.id,category:'beauty'}]});const site=f.content.publicSite();const page=(id:number,productIds:number[],status='active')=>({id,kind:'guide',title:'Guide '+id,slug:'guide-'+id,status,updatedAt:'2026-10-30T00:00:00Z',data:{productIds,guideIds:[],featured:true,leadPageId:7,description:'Saved guide description',category:'Beauty',body:'Saved source information',imageId:null}} as any);
+ site.editorial=[page(1,[offer.id]),page(2,[999]),page(3,[offer.id],'draft')];site.leadPages=[{id:7,slug:'beauty-news',headline:'Beauty news',description:'Review the topic before subscribing.',cta:'View signup',type:'newsletter',imageId:null,hasResource:false}];assert.deepEqual(healthEditorial(site).map(p=>p.id),[1]);const html=renderToStaticMarkup(React.createElement(HealthReading,{site}));assert.match(html,/href="\/guides\/guide-1"/);assert.doesNotMatch(html,/guide-2|guide-3/);assert.match(html,/href="\/p\/beauty-news"/);assert.match(html,/consent/);
+ }finally{f.db.close();}
+});

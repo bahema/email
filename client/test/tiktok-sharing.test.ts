@@ -1,0 +1,7 @@
+import React from 'react';
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {TikTokShare} from '../src/ui/TikTokShare.tsx';
+import {ShareStudio} from '../src/ui/ShareStudio.tsx';
+test('TikTok sharing exposes genuine poster, caption and on-demand video actions without auto-posting or third-party embeds',()=>{const config={posterPath:'/media/share/1/version-story.jpg',videoEndpoint:'/api/public/tiktok-video/1/version',durationSeconds:8,width:1080,height:1920,fps:30};const html=renderToStaticMarkup(React.createElement(TikTokShare,{config,title:'Product',caption:'Product details',copyCaption(){}}));assert.match(html,/Download TikTok poster/);assert.match(html,/Copy TikTok caption/);assert.match(html,/Create animated TikTok video/);assert.match(html,/Nothing is posted automatically/);assert.match(html,/not clickable links/);assert.ok(!html.includes('<iframe'));assert.ok(!html.includes('<video'));const noImage=renderToStaticMarkup(React.createElement(TikTokShare,{config:{...config,videoEndpoint:undefined},title:'Product',caption:'Details',copyCaption(){}}));assert.ok(!noImage.includes('Create animated TikTok video'));assert.match(noImage,/available public product image/);const studio=renderToStaticMarkup(React.createElement(ShareStudio,{title:'Product',url:'https://example.test/resources/offer/product',caption:'Details',close(){}}));assert.match(studio,/>TikTok<\/button>/);});

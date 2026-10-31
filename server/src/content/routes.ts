@@ -1,3 +1,5 @@
+import {embedPreviewHtml} from './embeds.js';
+import {faqEmbedSource} from '@affiliate/shared';
 import {heroResults} from './hero-results.js';
 import {EditorialStore} from './editorial.js';
 import { z } from 'zod';
@@ -16,6 +18,7 @@ export function contentRoutes(db:DatabaseSync,sessions:Sessions,settings:Setting
   admin.get('/header-notifications',(req,res)=>{const page=z.coerce.number().int().min(1).max(100000).default(1).parse(req.query.page),size=20;const total=Number(db.prepare('SELECT count(*) n FROM admin_notifications').get()?.n??0),unread=Number(db.prepare('SELECT count(*) n FROM admin_notifications WHERE read_at IS NULL').get()?.n??0);res.setHeader('Cache-Control','no-store');res.json({page,pageSize:size,total,unread,items:db.prepare('SELECT n.*,s.contact_id,s.source_label,s.promotion_snapshot,s.consent_mode,c.name,c.email,c.status FROM admin_notifications n JOIN lead_submissions s ON s.id=n.submission_id JOIN contacts c ON c.id=s.contact_id ORDER BY n.id DESC LIMIT ? OFFSET ?').all(size,(page-1)*size).map(r=>({...r,promotion:r.promotion_snapshot?JSON.parse(String(r.promotion_snapshot)):null,promotion_snapshot:undefined}))});});
   admin.post('/header-notifications/read',(req,res)=>{const input=z.object({ids:z.array(z.number().int().positive()).min(1).max(100)}).strict().parse(req.body);db.prepare("UPDATE admin_notifications SET read_at=coalesce(read_at,strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE id IN ("+input.ids.map(()=>'?').join(',')+")").run(...input.ids);res.json({message:'Notifications marked read'});});
   const editorial=new EditorialStore(db);
+  admin.get('/embeds/:key/preview',(req,res)=>{const item=store.sections().embeds?.items.find(i=>i.key===String(req.params.key)),source=item?faqEmbedSource(item):'';if(!item||!source)throw new HttpError(404,'NOT_FOUND','Save a valid preview source first');res.setHeader('Cache-Control','no-store');res.setHeader('X-Robots-Tag','noindex, nofollow');res.setHeader('Content-Security-Policy',`default-src 'none'; frame-src ${new URL(source).origin}; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'`);res.type('html').send(embedPreviewHtml(item));});
   admin.get('/editorial',(_req,res)=>res.json(editorial.list()));
   admin.post('/editorial',(req,res)=>res.status(201).json(editorial.save(req.body)));
   admin.put('/editorial/:id',(req,res)=>res.json(editorial.save(req.body,z.coerce.number().int().positive().parse(req.params.id))));

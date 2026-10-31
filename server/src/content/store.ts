@@ -1,3 +1,4 @@
+import {activeFaqEmbed,type EmbedSettings} from '@affiliate/shared';
 import {promotionLive,type VideoPromotion} from '@affiliate/shared';
 import {EditorialStore} from './editorial.js';
 import type { DatabaseSync } from 'node:sqlite';
@@ -66,6 +67,7 @@ export class ContentStore {
     if(!Object.hasOwn(sectionSchemas,key))throw new HttpError(404,'NOT_FOUND','Website section not found');
     const value=sectionSchemas[key as keyof typeof sectionSchemas].parse(input);
     validateReferences(this.db,value);
+    if(key==='embeds'){const embeds=value as EmbedSettings,ownHosts=[this.settings.read().domains.publicUrl,this.settings.read().general.siteUrl].map(v=>new URL(v).hostname.replace(/^www\./,''));for(const item of embeds.items){if(item.type==='website'&&item.url&&ownHosts.includes(new URL(item.url).hostname.replace(/^www\./,'')))throw new HttpError(400,'INVALID_EMBED','Use an external provider, not this website’s own pages');if(item.offerId&&!this.db.prepare("SELECT id FROM content_items WHERE id=? AND kind='offer'"+(item.status==='active'?" AND status='active'":'')).get(item.offerId))throw new HttpError(400,'INVALID_OFFER','Choose an existing offer; publishing requires an active offer');}}
     if(key==='promotions')for(const page of (value as {pages:VideoPromotion[]}).pages){
       for(const id of [...page.productIds,...(page.offerId?[page.offerId]:[])])if(!this.db.prepare("SELECT id FROM content_items WHERE id=? AND kind='offer'"+(page.status==='active'?" AND status='active'":'')).get(id))throw new HttpError(400,'INVALID_OFFER','Select existing offers; published promotions require active offers');
       if(page.leadPageId){const lead=new LeadPageStore(this.db).get(page.leadPageId);if(page.status==='active'){const live=new LeadPageStore(this.db).active(lead.slug);if(!['double','single'].includes(live.data.deliveryMode))throw new HttpError(400,'INVALID_JOURNEY','Choose a subscription lead page');new LeadPageStore(this.db).validateDelivery({name:live.name,slug:live.slug,type:live.type,status:'active',data:live.data});}}
@@ -93,6 +95,7 @@ export class ContentStore {
     return transaction(this.db,()=>{this.db.prepare('INSERT INTO website_sections(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key,JSON.stringify(value));updateReferences(this.db,`section:${key}`,value);event(this.db,'website_section_saved',{key});return this.sections();});
   }
   remove(id:number){
+    if(this.sections().embeds?.items.some(i=>i.offerId===id))throw new HttpError(409,'CONTENT_IN_USE','Remove this offer from Iframe & embeds first');
     if(this.sections().promotions?.pages.some(p=>p.offerId===id||p.productIds.includes(id)))throw new HttpError(409,'CONTENT_IN_USE','Remove this offer from video promotions first');
     if(this.sections().health?.products.some(p=>p.offerId===id))throw new HttpError(409,'CONTENT_IN_USE','Remove this offer from Health & Beauty first');
     if(this.db.prepare("SELECT e.id FROM editorial_pages e,json_each(e.data,'$.productIds') j WHERE j.value=? LIMIT 1").get(id))throw new HttpError(409,'CONTENT_IN_USE','Remove this product from its guides or collections first');
@@ -118,7 +121,7 @@ export class ContentStore {
       return{...item,data};
     });
     const pages=new LeadPageStore(this.db),leadPages=pages.list().filter(p=>p.status==='active').map(p=>{const live=pages.active(p.slug);return{id:live.id,slug:live.slug,type:live.type,headline:live.data.headline,description:live.data.description,cta:live.data.cta,imageId:live.data.imageId,hasResource:!!live.data.resourceId};});
-    const sections=this.sections();if(sections.promotions)sections.promotions={pages:sections.promotions.pages.filter(p=>promotionLive(p))};
+    const sections=this.sections();if(sections.embeds){const active=activeFaqEmbed(sections.embeds),live=active&&items.some(i=>i.id===active.offerId&&i.kind==='offer')?active:null;sections.embeds={...sections.embeds,activeKey:live?.key??null,items:live?[live]:[]};}if(sections.promotions)sections.promotions={pages:sections.promotions.pages.filter(p=>promotionLive(p))};
     return{editorial:new EditorialStore(this.db).publicPages(),name:settings.general.siteName,logoUrl:settings.general.logoUrl,disclosure:settings.affiliate.disclosure,consentText:settings.compliance.consentText,items,sections,leadPages};
   }
 }

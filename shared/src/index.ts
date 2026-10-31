@@ -1,3 +1,4 @@
+export * from './embeds.js';
 export * from './promotions.js';
 export * from './video.js';
 export * from './hero.js';
@@ -64,6 +65,7 @@ export type ContentKind = 'navigation' | 'hero' | 'offer' | 'upcoming' | 'faq' |
 export interface ContentItem { id: number; kind: ContentKind; slug: string; title: string; position: number; status: string; data: Record<string, unknown>; }
 export interface MediaAsset { id: number; filename: string; mime: string; size: number; extension: string; category: string; visibility: 'public' | 'private'; url: string; uploadedAt: string; }
 export interface WebsiteSections {
+  embeds?:import('./embeds.js').EmbedSettings;
   promotions?:{pages:import('./promotions.js').VideoPromotion[]};
   health?:import('./health.js').HealthSection;
   discovery?:{savedEnabled:boolean;compareEnabled:boolean;savedHeading:string;collectionsHeading:string;guidesHeading:string};

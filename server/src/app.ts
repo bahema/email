@@ -1,3 +1,5 @@
+import {activeFaqEmbed,faqEmbedSource} from '@affiliate/shared';
+import {ContentStore} from './content/store.js';
 import {deliveryRoutes} from './mail/delivery-routes.js';
 import {visitorRoutes} from './analytics/visitors.js';
 import { downloadRoutes } from './downloads.js';
@@ -32,10 +34,11 @@ export function createApp(db: DatabaseSync, schemaVersion: number, options: AppO
   environment: config.NODE_ENV, trustProxy: config.TRUST_PROXY === 'true',
 }) {
   const app = express();
+  const settings = new SettingsStore(db, options.encryptionKey, options.siteUrl, options.timezone);
   app.disable('x-powered-by');
   if (options.trustProxy) app.set('trust proxy', 1);
-  // Authorize Whop's exact inline pixel and its loader/event origin in the page CSP.
-  app.use(helmet({ referrerPolicy: { policy: 'no-referrer' }, contentSecurityPolicy: { directives: { scriptSrc: ["'self'", "https://t.whop.tw", "'sha256-4+/JMArj30cAjAMQw8+cJmGr8zjibGYY4OkAe0U/zsg='"], connectSrc: ["'self'", "https://t.whop.tw"], imgSrc: ["'self'", "data:", "https:", "http:"], mediaSrc: ["'self'", "https:"], frameSrc: ["'self'", "https://www.youtube-nocookie.com", "https://player.vimeo.com"] } } }));
+  // Preserve the existing exact tracking policy alongside the selected FAQ provider origin.
+  app.use(helmet({ referrerPolicy: { policy: 'no-referrer' }, contentSecurityPolicy: { directives: { scriptSrc: ["'self'", "https://t.whop.tw", "'sha256-4+/JMArj30cAjAMQw8+cJmGr8zjibGYY4OkAe0U/zsg='"], connectSrc: ["'self'", "https://t.whop.tw"], imgSrc: ["'self'", "data:", "https:", "http:"], mediaSrc: ["'self'", "https:"], frameSrc: ["'self'", "https://www.youtube-nocookie.com", "https://player.vimeo.com",()=>{const item=activeFaqEmbed(new ContentStore(db,settings).sections().embeds);const live=item&&db.prepare("SELECT id FROM content_items WHERE id=? AND kind='offer' AND status='active'").get(item.offerId??0);const source=item&&live?faqEmbedSource(item):'';return source?new URL(source).origin:"'self'";}] } } }));
   app.use((_req, res, next) => { res.locals.requestId = randomUUID(); res.setHeader('X-Request-ID', res.locals.requestId); next(); });
   app.use(express.json({ limit: '100kb' }));
   app.use('/api',(_req,res,next)=>{res.setHeader('X-Robots-Tag','noindex, nofollow');res.setHeader('Cache-Control','no-store');next();});
@@ -46,8 +49,8 @@ export function createApp(db: DatabaseSync, schemaVersion: number, options: AppO
   });
   const sessions = new Sessions(db, options);
   app.use('/api/auth', authRoutes(db, sessions, options.loginLimit));
-  const settings = new SettingsStore(db, options.encryptionKey, options.siteUrl, options.timezone);
-  app.use(shareImageRoutes(db,settings,options.uploadDir ?? config.uploadDir));
+
+  app.use(shareImageRoutes(db,settings,options.uploadDir ?? config.uploadDir,{allowLoopbackOrigins:options.allowLoopbackOrigins}));
   const delivery=deliveryRoutes(db,settings,sessions);app.use('/api/admin/email-delivery',delivery.admin);app.use(delivery.publicRouter);
   app.use(seoRoutes(db,settings));
   app.use(visitorRoutes(db,settings,options.encryptionKey));

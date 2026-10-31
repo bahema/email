@@ -1,6 +1,6 @@
 import {videoSource,videoEmbed} from '@affiliate/shared';
 import type {ContentItem} from '@affiliate/shared';
-import {productPrice,shareImagePath} from './product-sharing.js';
+import {productPrice,shareImagePath,productShareTheme} from './product-sharing.js';
 import { Router } from 'express';
 import { publicBootstrap,publicActivity,initialHtml } from './public-bootstrap.js';
 import type { DatabaseSync } from 'node:sqlite';
@@ -26,7 +26,7 @@ export function pageMetadata(db:DatabaseSync,settings:SettingsStore,path:string,
  else if(['/privacy','/terms','/affiliate-disclosure'].includes(path)){const key=path==='/privacy'?'privacy':path==='/terms'?'terms':'disclosure';title=`${key==='disclosure'?'Affiliate disclosure':key==='privacy'?'Privacy policy':'Terms'} | ${site.name}`;description=`${title}. Learn how this website operates.`;body=`<h1>${escapeHtml(title)}</h1><p>${escapeHtml(site.sections.legal[key])}</p>`;}
  else{noindex=true;title=path.startsWith('/admin')?`Owner workspace | ${site.name}`:'Private action';if(!path.startsWith('/admin')&&!/^\/(confirm|unsubscribe)(\/|$)/.test(path)){notFound=true;title='Page not found';}}
  if(path==='/'&&!custom){title=general.seoTitle||title;description=general.seoDescription||description;}
- if(product){title=String(product.data.seoTitle||product.title)+' | '+site.name;description=String(product.data.seoDescription||product.data.description||'');image=shareImagePath(product,site.name,'landscape',site.logoUrl);}
+ if(product){title=String(product.data.seoTitle||product.title)+' | '+site.name;description=String(product.data.seoDescription||product.data.description||'');image=shareImagePath(product,site.name,'landscape',site.logoUrl,productShareTheme(site,product));}
  const canonical=base+(noindex||custom?'/':canonicalPath),absoluteImage=new URL(image,base+'/').href,logo=new URL(site.logoUrl||'/brand/33-items-logo.jpg',base+'/').href;
  if(noindex&&!path.startsWith('/p/'))description='Manage your subscription or access your private workspace.';
  const graph:Record<string,unknown>[]=[];
