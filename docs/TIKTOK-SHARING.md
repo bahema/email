@@ -9,3 +9,9 @@ FFmpeg must be installed on the server. The Dockerfile includes it; local develo
 Resource limits: one encoder at a time, up to two waiting jobs, ten creation requests per IP per minute, thirty new renders per process per rolling hour, eight in-memory jobs, six MB maximum per output, a ninety-second encoder timeout and one-hour cache expiry. Repeated requests for the same asset reuse its job. New product data or changed media access changes eligibility/cache identity. Access is rechecked when preparing and downloading, and video responses use no-store. Restarting the server clears temporary job/cache state; the visitor can retry. Downloading posters remains the fallback when video capacity or FFmpeg is unavailable.
 
 The encoder uses isolated temporary files and removes its own directory after success/failure. Exports are not added to the media library or subscriber database. No contacts, SMTP settings or email queues are modified.
+
+## Text fitting and visitor background choices
+
+Share exports measure text using the same font engine that draws it. Titles, badges, prices and website text fit reserved pixel boxes, using smaller fonts and a final ellipsis only when needed. Existing content fields and export dimensions are preserved. Long video summaries use the same bounded fitting approach.
+
+The Share window offers background presets and a custom color, applied explicitly to image and TikTok video exports. Foreground text automatically reaches at least 4.5:1 contrast; existing brand and price badge text keep their readable colors. The choice is per export, with no product, contact or website-setting writes. Ordinary shared page links retain the site's default social image. Six-digit colors are validated, included in image/video cache identities and retained through download/retry URLs. Applying another color clears the old preview/video selection. Website-default and explicitly identical video colors share one rendering job.

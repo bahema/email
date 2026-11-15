@@ -1,3 +1,4 @@
+export * from './share-appearance.js';
 export * from './embeds.js';
 export * from './promotions.js';
 export * from './video.js';
