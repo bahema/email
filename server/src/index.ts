@@ -28,7 +28,7 @@ if (config.NODE_ENV === 'production') {
   const html=readFileSync(resolve(config.clientDist,'index.html'),'utf8');
   const seoSettings=new SettingsStore(db,config.SETTINGS_ENCRYPTION_KEY,config.SITE_URL,config.TIMEZONE);
   app.use(express.static(config.clientDist,{index:false}));
-  app.get('/{*path}', (req,res,next)=>{try{const meta=pageMetadata(db,seoSettings,req.path,req.hostname);res.setHeader('Cache-Control','no-store');if(meta.noindex)res.setHeader('X-Robots-Tag','noindex, nofollow');res.status(meta.notFound?404:200).type('html').send(initialHtml(html,db,seoSettings,req.path,req.hostname,/(?:^|;\s*)affiliate_storage_notice=1(?:;|$)/.test(req.headers.cookie||''),req.originalUrl.includes('?')?'?'+req.originalUrl.split('?').slice(1).join('?').slice(0,2048):''));}catch(e){next(e);}});
+  app.get('/{*path}', (req,res,next)=>{try{const meta=pageMetadata(db,seoSettings,req.path,req.hostname,req.originalUrl.includes('?')?req.originalUrl.slice(req.originalUrl.indexOf('?')):'');res.setHeader('Cache-Control','no-store');if(meta.noindex)res.setHeader('X-Robots-Tag','noindex, nofollow');res.status(meta.notFound?404:200).type('html').send(initialHtml(html,db,seoSettings,req.path,req.hostname,/(?:^|;\s*)affiliate_storage_notice=1(?:;|$)/.test(req.headers.cookie||''),req.originalUrl.includes('?')?'?'+req.originalUrl.split('?').slice(1).join('?').slice(0,2048):''));}catch(e){next(e);}});
 }
 app.use(errorHandler);
 const server = app.listen(config.PORT, config.HOST, () => console.info(`API listening on http://${config.HOST}:${config.PORT}`));

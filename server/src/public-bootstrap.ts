@@ -28,7 +28,7 @@ export function publicBootstrap(db:DatabaseSync,settings:SettingsStore,path:stri
  return {query,countries:countryOptions,site,funnel,page,pageSlug:slug,activity:publicActivity(db,settings),action,storageSaved,renderedAt:Date.now(),publicOrigin:funnel?'https://'+funnel.host:settings.read().domains.publicUrl};
 }
 export function initialHtml(html:string,db:DatabaseSync,settings:SettingsStore,path:string,host:string,storageSaved=false,query=''){
- const meta=pageMetadata(db,settings,path,host);let output=renderPageHtml(html,meta);if(path.startsWith('/admin'))return output;output=output.replace('</head>',whopPixel+'</head>');
+ const meta=pageMetadata(db,settings,path,host,query);let output=renderPageHtml(html,meta);if(path.startsWith('/admin'))return output;output=output.replace('</head>',whopPixel+'</head>');
  const bootstrap=publicBootstrap(db,settings,path,host,storageSaved,query),site=bootstrap.site,e=escapeHtml,home=path==='/'&&!bootstrap.funnel;
  const resources=site.items.filter(i=>i.kind==='offer');
  const header=`<header class="site-header"><nav class="site-nav" aria-label="Main navigation"><a class="site-brand" href="/" aria-label="${e(site.name)} home"><img class="website-logo" src="${e(site.logoUrl||'/brand/33-items-logo.jpg')}" alt="${e(site.name)} logo" width="56" height="56"></a><div class="site-nav-links">${site.items.filter(i=>i.kind==='navigation').map(i=>`<a href="${e(i.data.href)}">${e(i.data.label)}</a>`).join('')}</div><a class="admin-entry" href="/admin/login">Admin</a></nav></header>`;
