@@ -1,34 +1,40 @@
 import {execFile} from 'node:child_process';
-import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';
+import {mkdtemp,writeFile,readFile,rm,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,relative,isAbsolute} from 'node:path';
 import {HttpError} from './http.js';
 
 export const tikTokVideoInfo={width:1080,height:1920,durationSeconds:10,fps:30};
+export interface VerticalVideoOptions{resolution:'1080p'|'4k';duration:10|15|20;}
+export const defaultVideoOptions:VerticalVideoOptions={resolution:'1080p',duration:10};
+export function verticalVideoOptions(query:Record<string,unknown>):VerticalVideoOptions{const resolution=query.resolution??'1080p',duration=query.duration??'10';if(!['1080p','4k'].includes(resolution as string)||!['10','15','20'].includes(duration as string))throw new HttpError(400,'INVALID_VIDEO_OPTIONS','Choose 1080p or 4K and a duration of 10, 15 or 20 seconds.');return{resolution:resolution as VerticalVideoOptions['resolution'],duration:Number(duration) as VerticalVideoOptions['duration']};}
+export function verticalVideoInfo(options:VerticalVideoOptions){return{width:options.resolution==='4k'?2160:1080,height:options.resolution==='4k'?3840:1920,durationSeconds:options.duration,fps:30};}
+export const maximumVideoBytes=112*1024*1024;
 export interface TikTokLayer{key:string;image:Buffer;x:number;y:number;start:number;offsetX:number;offsetY:number;}
-export interface TikTokScene{poster:Buffer;layers:TikTokLayer[];background?:string;}
+export interface TikTokScene{poster:Buffer;layers:TikTokLayer[];background?:string;options?:VerticalVideoOptions;}
 export function tikTokOriginAllowed(origin:string|undefined,trusted:string[],allowLoopback:boolean){
  if(!origin)return true;if(trusted.includes(origin))return true;if(!allowLoopback)return false;
  try{const url=new URL(origin);return url.origin===origin&&url.protocol==='http:'&&['localhost','127.0.0.1'].includes(url.hostname)&&['5173','3001'].includes(url.port);}catch{return false;}
 }
 export type VideoEncoder=(scene:TikTokScene)=>Promise<Buffer>;
 export async function renderTikTokVideo(scene:TikTokScene):Promise<Buffer>{
+ const options=verticalVideoOptions({resolution:scene.options?.resolution,duration:scene.options?String(scene.options.duration):undefined}),info=verticalVideoInfo(options),high=options.resolution==='4k';
  const directory=await mkdtemp(join(tmpdir(),'affiliate-tiktok-'));
  try{
   if(!scene.layers.length||scene.layers.length>8)throw Error('Video scene is unavailable');
   const background=/^#[a-f0-9]{6}$/i.test(scene.background||'')?scene.background!.slice(1):'edf1e8';
-  const output=join(directory,'product.mp4'),args=['-hide_banner','-loglevel','error','-nostdin','-y','-filter_complex_threads','1','-f','lavfi','-i','color=c=0x'+background+':s=1080x1920:r=30:d=10'];
+  const output=join(directory,'product.mp4'),args=['-hide_banner','-loglevel','error','-nostdin','-y','-filter_complex_threads','1','-f','lavfi','-i','color=c=0x'+background+':s='+info.width+'x'+info.height+':r=30:d='+info.durationSeconds];
   const filters:string[]=[];let previous='0:v';
   for(let i=0;i<scene.layers.length;i++){
-   const layer=scene.layers[i]!,input=join(directory,'layer-'+i+'.png');await writeFile(input,layer.image);args.push('-protocol_whitelist','file,pipe','-loop','1','-framerate','1','-i',input);
+   const layer=scene.layers[i]!,input=join(directory,'layer-'+i+'.png');await writeFile(input,layer.image);args.push('-protocol_whitelist','file,pipe','-threads','1','-thread_queue_size','1','-loop','1','-framerate','30','-i',input);
    const progress=`pow(1-clip((t-${layer.start})/0.65,0,1),3)`,x=`${layer.x}+${layer.offsetX}*${progress}`,y=`${layer.y}+${layer.offsetY}*${progress}`;
-   filters.push(`[${i+1}:v]fps=30,format=rgba,fade=t=in:st=${layer.start}:d=0.45:alpha=1[layer${i}]`);
+   filters.push(`[${i+1}:v]format=rgba,fade=t=in:st=${layer.start}:d=0.45:alpha=1[layer${i}]`);
    filters.push(`[${previous}][layer${i}]overlay=x='${x}':y='${y}':enable='gte(t,${layer.start})':shortest=1[stage${i}]`);previous='stage'+i;
   }
-  filters.push(`[${previous}]fade=t=out:st=9.65:d=0.35,scale=in_range=tv:out_range=tv,format=yuv420p[video]`);
-  args.push('-filter_complex',filters.join(';'),'-map','[video]','-t','10','-an','-pix_fmt','yuv420p','-color_range','tv','-map_metadata','-1','-c:v','libx264','-preset','veryfast','-crf','23','-maxrate','3M','-bufsize','6M','-threads','2','-movflags','+faststart',output);
-  await new Promise<void>((resolve,reject)=>{execFile(process.env.FFMPEG_PATH||'ffmpeg',args,{windowsHide:true,timeout:90000,maxBuffer:128*1024,shell:false},error=>error?reject(new Error('Video rendering is unavailable. Download the poster instead, or try again later.')):resolve());});
-  const video=await readFile(output);if(video.length>6*1024*1024||video.subarray(4,8).toString()!=='ftyp')throw new Error('Video export could not be completed. Download the poster instead.');return video;
+  filters.push(`[${previous}]fade=t=out:st=${info.durationSeconds-.35}:d=0.35,scale=in_range=tv:out_range=tv,format=yuv420p[video]`);
+  args.push('-filter_complex',filters.join(';'),'-map','[video]','-t',String(info.durationSeconds),'-an','-pix_fmt','yuv420p','-color_range','tv','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-map_metadata','-1','-c:v','libx264','-profile:v','high','-preset','veryfast','-tune','zerolatency','-crf','20','-maxrate',high?'40M':'12M','-bufsize',high?'80M':'24M','-threads','1','-movflags','+faststart',output);
+  await new Promise<void>((resolve,reject)=>{execFile(process.env.FFMPEG_PATH||'ffmpeg',args,{windowsHide:true,timeout:high?300000:150000,maxBuffer:128*1024,shell:false},error=>error?reject(new Error('Video rendering is unavailable. Download the poster instead, or try again later.')):resolve());});
+  if((await stat(output)).size>maximumVideoBytes)throw new Error('Video export is too large. Try a shorter duration or 1080p.');const video=await readFile(output);if(video.subarray(4,8).toString()!=='ftyp')throw new Error('Video export could not be completed. Download the poster instead.');return video;
  }finally{const target=relative(tmpdir(),directory);if(target.startsWith('affiliate-tiktok-')&&!target.includes('..')&&!isAbsolute(target))await rm(directory,{recursive:true,force:true});}
 }
 type Job={state:'queued'|'rendering'|'ready'|'failed';created:number;prepare:()=>Promise<TikTokScene>;video?:Buffer;};
@@ -49,6 +55,6 @@ export class TikTokVideoQueue{
  private async pump(){
   if(this.running)return;const entry=[...this.jobs].find(([,j])=>j.state==='queued');if(!entry)return;
   this.running=true;const [,job]=entry;job.state='rendering';
-  try{const video=await this.encoder(await job.prepare());if(video.length>6*1024*1024)throw new Error('Video too large');job.video=video;job.state='ready';}catch{job.state='failed';}finally{job.prepare=async()=>{throw Error('Render completed');};this.running=false;void this.pump();}
+  try{const video=await this.encoder(await job.prepare());if(video.length>maximumVideoBytes)throw new Error('Video too large');let cached=[...this.jobs.values()].reduce((sum,j)=>sum+(j.video?.length||0),0);for(const [key,old]of this.jobs){if(cached+video.length<=128*1024*1024)break;if(old!==job&&old.state==='ready'){cached-=old.video?.length||0;this.jobs.delete(key);}}job.video=video;job.state='ready';}catch{job.state='failed';}finally{job.prepare=async()=>{throw Error('Render completed');};this.running=false;void this.pump();}
  }
 }
