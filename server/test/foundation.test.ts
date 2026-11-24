@@ -8,13 +8,26 @@ import { createApp, errorHandler } from '../src/app.js';
 test('migrations are repeatable and enforce foundation constraints', () => {
   const db = openDatabase(':memory:');
   try {
-    assert.equal(migrate(db), 20);
-    assert.equal(migrate(db), 20);
-    assert.equal(db.prepare('SELECT count(*) AS count FROM schema_migrations').get()?.count, 20);
+    assert.equal(migrate(db), 21);
+    assert.equal(migrate(db), 21);
+    assert.equal(db.prepare('SELECT count(*) AS count FROM schema_migrations').get()?.count, 21);
     assert.throws(() => db.prepare('INSERT INTO admin (id,email,password_hash) VALUES (2,?,?)').run('admin@example.test', 'hash'));
     assert.throws(() => db.prepare('INSERT INTO settings (key,value) VALUES (?,?)').run('bad', 'not-json'));
     assert.equal(db.prepare('PRAGMA foreign_keys').get()?.foreign_keys, 1);
   } finally { db.close(); }
+});
+
+test('Blog migration creates isolated tables with safe defaults and relational constraints',()=>{
+ const db=openDatabase(':memory:');
+ try{
+  assert.equal(migrate(db),21);
+  assert.deepEqual(db.prepare('SELECT enabled,show_when_empty FROM blog_settings WHERE id=1').get(),{enabled:0,show_when_empty:0});
+  assert.equal(db.prepare("SELECT count(*) AS count FROM blog_articles").get()?.count,0);
+  assert.throws(()=>db.prepare("INSERT INTO blog_articles(title,slug,status) VALUES('Draft','draft','published')").run());
+  assert.throws(()=>db.prepare("INSERT INTO blog_article_related(article_id,related_article_id) VALUES(1,1)").run());
+  assert.equal(db.prepare("SELECT count(*) AS count FROM schema_migrations WHERE version=21").get()?.count,1);
+  assert.equal(migrate(db),21);
+ }finally{db.close();}
 });
 
 test('API health, missing routes and invalid JSON use expected responses', async () => {

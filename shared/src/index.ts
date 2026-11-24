@@ -4,6 +4,7 @@ export * from './promotions.js';
 export * from './video.js';
 export * from './hero.js';
 export * from './health.js';
+export * from './blog.js';
 export interface HealthResponse {
   status: 'ok';
   service: string;

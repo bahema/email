@@ -122,6 +122,63 @@ migrations.push({version:20,name:'email_delivery_feedback_and_controls',sql:`
  CREATE TABLE email_delivery_events(id INTEGER PRIMARY KEY,provider_event_id TEXT NOT NULL UNIQUE,token_hash TEXT NOT NULL UNIQUE,message_id INTEGER REFERENCES email_delivery_messages(id) ON DELETE CASCADE,kind TEXT NOT NULL CHECK(kind IN ('delivered','temporary_failure','bounced','complained','unsubscribed')),occurred_at INTEGER NOT NULL,received_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')));
 `});
 
+migrations.push({version:21,name:'berliaon_blog_foundation',sql:`
+ CREATE TABLE blog_settings(
+   id INTEGER PRIMARY KEY CHECK(id=1),
+   enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),
+   show_when_empty INTEGER NOT NULL DEFAULT 0 CHECK(show_when_empty IN (0,1)),
+   updated_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+ );
+ INSERT INTO blog_settings(id,enabled,show_when_empty) VALUES(1,0,0);
+ CREATE TABLE blog_categories(
+   id INTEGER PRIMARY KEY,
+   title TEXT NOT NULL,
+   slug TEXT NOT NULL UNIQUE,
+   description TEXT NOT NULL DEFAULT '',
+   status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','inactive')),
+   position INTEGER NOT NULL DEFAULT 0 CHECK(position BETWEEN 0 AND 10000),
+   created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+   updated_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+ );
+ CREATE INDEX blog_categories_public ON blog_categories(status,position,id);
+ CREATE TABLE blog_articles(
+   id INTEGER PRIMARY KEY,
+   title TEXT NOT NULL,
+   slug TEXT NOT NULL UNIQUE,
+   excerpt TEXT NOT NULL DEFAULT '',
+   category_id INTEGER REFERENCES blog_categories(id) ON DELETE SET NULL,
+   author TEXT NOT NULL DEFAULT '',
+   status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','active','inactive')),
+   body_html TEXT NOT NULL DEFAULT '',
+   cover_media_id INTEGER REFERENCES media(id) ON DELETE SET NULL,
+   cover_alt TEXT NOT NULL DEFAULT '',
+   featured INTEGER NOT NULL DEFAULT 0 CHECK(featured IN (0,1)),
+   seo_title TEXT NOT NULL DEFAULT '',
+   seo_description TEXT NOT NULL DEFAULT '',
+   canonical_url TEXT NOT NULL DEFAULT '',
+   published_at TEXT,
+   scheduled_at TEXT,
+   created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+   updated_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+ );
+ CREATE INDEX blog_articles_public ON blog_articles(status,published_at DESC,id DESC);
+ CREATE INDEX blog_articles_category ON blog_articles(category_id,status,published_at DESC);
+ CREATE TABLE blog_article_products(
+   article_id INTEGER NOT NULL REFERENCES blog_articles(id) ON DELETE CASCADE,
+   product_id INTEGER NOT NULL REFERENCES content_items(id) ON DELETE RESTRICT,
+   position INTEGER NOT NULL DEFAULT 0 CHECK(position BETWEEN 0 AND 10000),
+   PRIMARY KEY(article_id,product_id)
+ );
+ CREATE TABLE blog_article_related(
+   article_id INTEGER NOT NULL REFERENCES blog_articles(id) ON DELETE CASCADE,
+   related_article_id INTEGER NOT NULL REFERENCES blog_articles(id) ON DELETE CASCADE,
+   position INTEGER NOT NULL DEFAULT 0 CHECK(position BETWEEN 0 AND 10000),
+   CHECK(article_id<>related_article_id),
+   PRIMARY KEY(article_id,related_article_id)
+ );
+ CREATE INDEX blog_related_reverse ON blog_article_related(related_article_id);
+`});
+
 export function migrate(db: DatabaseSync): number {
   db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
     version INTEGER PRIMARY KEY, name TEXT NOT NULL,
