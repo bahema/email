@@ -40,4 +40,4 @@ export const blogArticleSchema=z.object({
  scheduledAt:z.iso.datetime({offset:true}).nullable().default(null),
  productIds:uniqueIds.default([]),
  relatedArticleIds:uniqueIds.default([])
-}).strict().refine(value=>!value.relatedArticleIds.includes(-1),'Invalid related article selection');
+}).strict();

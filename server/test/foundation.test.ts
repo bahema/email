@@ -21,7 +21,9 @@ test('Blog migration creates isolated tables with safe defaults and relational c
  const db=openDatabase(':memory:');
  try{
   assert.equal(migrate(db),21);
-  assert.deepEqual(db.prepare('SELECT enabled,show_when_empty FROM blog_settings WHERE id=1').get(),{enabled:0,show_when_empty:0});
+  const blogSettings=db.prepare('SELECT enabled,show_when_empty FROM blog_settings WHERE id=1').get();
+  assert.equal(blogSettings?.enabled,0);
+  assert.equal(blogSettings?.show_when_empty,0);
   assert.equal(db.prepare("SELECT count(*) AS count FROM blog_articles").get()?.count,0);
   assert.throws(()=>db.prepare("INSERT INTO blog_articles(title,slug,status) VALUES('Draft','draft','published')").run());
   assert.throws(()=>db.prepare("INSERT INTO blog_article_related(article_id,related_article_id) VALUES(1,1)").run());
