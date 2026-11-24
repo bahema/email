@@ -3,7 +3,6 @@ import sanitizeHtml from 'sanitize-html';
 import type {BlogArticle,BlogCategory,BlogSettings} from '@affiliate/shared';
 import {HttpError} from '../http.js';
 import {event,transaction} from '../db/helpers.js';
-import {validateReferences} from '../media/storage.js';
 import {blogArticleSchema,blogCategorySchema,blogSettingsSchema} from './schema.js';
 
 const clean=(html:string)=>sanitizeHtml(html,{
