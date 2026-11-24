@@ -25,6 +25,7 @@ import { leadRoutes } from './lead-pages/routes.js';
 import { analyticsRoutes } from './analytics/routes.js';
 import { seoRoutes } from './seo.js';
 import {shareImageRoutes} from './product-sharing.js';
+import {blogRoutes} from './blog/routes.js';
 
 export interface AppOptions extends SessionOptions, AdminOptions { loginLimit?: number; trustProxy?: boolean; uploadDir?: string; marketingSender?: MarketingSender; }
 export function createApp(db: DatabaseSync, schemaVersion: number, options: AppOptions = {
@@ -56,6 +57,9 @@ export function createApp(db: DatabaseSync, schemaVersion: number, options: AppO
   app.use(visitorRoutes(db,settings,options.encryptionKey));
   app.use(['/admin','/confirm','/unsubscribe','/download','/go','/email'],(_req,res,next)=>{res.setHeader('X-Robots-Tag','noindex, nofollow');next();});
   const content = contentRoutes(db, sessions, settings);
+  const blog = blogRoutes(db,sessions);
+  app.use('/api/admin/blog',blog.admin);
+  app.use('/api/public/blog',blog.pub);
   const media = mediaRoutes(db, sessions, settings, options.uploadDir ?? config.uploadDir);
   const contacts = contactRoutes(db, sessions, new ContactStore(db, settings, content.store, options.encryptionKey));
   const marketing = marketingRoutes(db, sessions, settings, options.marketingSender);

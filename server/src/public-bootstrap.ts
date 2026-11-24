@@ -7,6 +7,7 @@ import {FunnelDomains} from './lead-pages/domains.js';
 import {LeadPageStore} from './lead-pages/store.js';
 import {countryInfo,countryOptions} from './contacts/countries.js';
 import {escapeHtml,pageMetadata,renderPageHtml} from './seo.js';
+import {BlogStore} from './blog/store.js';
 type PublicRenderer=(bootstrap:PublicBootstrap,path:string)=>string;
 let renderer:PublicRenderer|null=null;
 // Inject tracking into public pages. Keep this exact body in sync with its CSP hash in app.ts.
@@ -25,7 +26,8 @@ export function publicBootstrap(db:DatabaseSync,settings:SettingsStore,path:stri
  let page=null;if(slug){try{page=new LeadPageStore(db).publicPage(slug);}catch{}}
  let action:PublicBootstrap['action']=null;const match=path.match(/^\/(confirm|unsubscribe)\/([^/]+)$/);
  if(match){try{action={info:new ContactStore(db,settings,new ContentStore(db,settings),'').inspect(match[2]!,match[1] as 'confirm'|'unsubscribe'),error:''};}catch(error){action={info:null,error:error instanceof Error?error.message:'Link unavailable'};}}
- return {query,countries:countryOptions,site,funnel,page,pageSlug:slug,activity:publicActivity(db,settings),action,storageSaved,renderedAt:Date.now(),publicOrigin:funnel?'https://'+funnel.host:settings.read().domains.publicUrl};
+ const blogStore=new BlogStore(db),blogSettings=blogStore.settings();
+ return {query,countries:countryOptions,site,funnel,page,pageSlug:slug,activity:publicActivity(db,settings),blog:{enabled:blogSettings.enabled,showWhenEmpty:blogSettings.showWhenEmpty,articleCount:blogSettings.enabled?blogStore.publicArticles().length:0},action,storageSaved,renderedAt:Date.now(),publicOrigin:funnel?'https://'+funnel.host:settings.read().domains.publicUrl};
 }
 export function initialHtml(html:string,db:DatabaseSync,settings:SettingsStore,path:string,host:string,storageSaved=false,query=''){
  const meta=pageMetadata(db,settings,path,host,query);let output=renderPageHtml(html,meta);if(path.startsWith('/admin'))return output;output=output.replace('</head>',whopPixel+'</head>');
