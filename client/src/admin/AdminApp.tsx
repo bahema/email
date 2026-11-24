@@ -1,6 +1,7 @@
 import {Embeds} from './Embeds';
 import {VideoPromotions} from './VideoPromotions';
 import {Health} from './Health';
+import {BlogAdmin} from './BlogAdmin';
 import {Downloads} from './Downloads';
 import {EmailControl} from './EmailControl';
 import { HeaderNotifications } from './HeaderNotifications';
